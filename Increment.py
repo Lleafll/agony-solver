@@ -2,20 +2,31 @@
 
 # Modules
 from math import sqrt
-#import numpy as np
+import numpy as np
+import json
 import pickle
 from random import randint
 from random import uniform
 
+# Debug
+from pympler.asizeof import asizeof
+from pympler import muppy
+from pympler import refbrowser
+from pympler import summary
+from pympler import tracker
+
+# Debug
+summarytracker = tracker.SummaryTracker()
+
 # Constants
-ITERATIONS = 5
+ITERATIONS = 100000
 INCREMENT_MIN = 0
 INCREMENT_MAX = 0.32
 MAX_TARGETS = 3
 
 # Variables
 accumulator = uniform(INCREMENT_MIN, INCREMENT_MAX)  # Initial condition
-targetHistory = []
+targetHistory = np.array([])
 ticksSinceShard = 0
 
 # Load 
@@ -30,47 +41,36 @@ if iteratedTicks is None:
 
 # Core - Incrementation
 def addToTargetHistory(currentTargets):
-  targetHistory.append(currentTargets)
-  targetHistory.sort()
+  np.append(targetHistory, currentTargets - 1)  # -1 because it's used for indexing
+  np.sort(targetHistory)
 
-def addTickResult(ticksSinceShard, isSuccess):
-  if ticksSinceShard in iteratedTicks:
-    dict = iteratedTicks[ticksSinceShard]
-  else:
-    iteratedTicks[ticksSinceShard] = {}
-    dict = iteratedTicks[ticksSinceShard]
-  
-  for targets in targetHistory:
-    if targets in dict:
-      dict = dict[targets]
-    else:
-      dict[targets] = {}
-      dict = dict[targets]
+def addTickResult(isSuccess):  
+  if not ticksSinceShard in iteratedTicks:
+    iteratedTicks[ticksSinceShard] = np.zeros(((MAX_TARGETS,) * ticksSinceShard) + (2,))
   
   if isSuccess:
-    if "gain" in dict:
-      dict["gain"] += 1
-    else:
-      dict["gain"] = 1
+    iteratedTicks[ticksSinceShard][tuple(targetHistory)][1] += 1
   else:
-    if "noGain" in dict:
-      dict["noGain"] += 1
-    else:
-      dict["noGain"] = 1
+    iteratedTicks[ticksSinceShard][tuple(targetHistory)][0] += 1
 
-for i in range(0, ITERATIONS):
-  if i % 1000 == 0:
+for i in range(1, ITERATIONS+1):
+  if i % 10000 == 0:
     print("Iteration %d" % i)
     
     # Debug
     import gc
     gc.collect()  # don't care about stuff that would be garbage collected properly
-    import objgraph
-    objgraph.show_most_common_types()
-    #from guppy import hpy
-    #hp = hpy()
-    #before = hp.heap()
+    #import objgraph
+    #objgraph.show_most_common_types()
 
+    summarytracker.print_diff()
+    
+    #summary.print_(summary.summarize(muppy.get_objects()))
+    
+    #refbrowser.InteractiveBrowser(iteratedTicks).main()
+    #raw_input("Press Enter to continue...")
+    
+    #print(asizeof(iteratedTicks))
   
   currentTargets = randint(1, MAX_TARGETS)
   addToTargetHistory(currentTargets)
@@ -78,15 +78,15 @@ for i in range(0, ITERATIONS):
   ticksSinceShard += 1
   
   if accumulator > 1:
-    addTickResult(ticksSinceShard, True)
+    addTickResult(True)
     ticksSinceShard = 0
-    targetCount = []
+    targetHistory = np.array([])
     accumulator -= 1
   else:
-    addTickResult(ticksSinceShard, False)
+    addTickResult(False)
 
 # Debug
-print(iteratedTicks) 
+#print(iteratedTicks)
 
 # Save results
 with open("iterationresult.pickle", "w") as file:
