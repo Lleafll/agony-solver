@@ -19,10 +19,11 @@ from pympler import tracker
 summarytracker = tracker.SummaryTracker()
 
 # Constants
-ITERATIONS = 100000
+ITERATIONS = 1000000
 INCREMENT_MIN = 0
 INCREMENT_MAX = 0.32
-MAX_TARGETS = 3
+MAX_TARGETS = 5
+MAX_ARRAY_DIMENSIONS = 11
 
 # Variables
 accumulator = uniform(INCREMENT_MIN, INCREMENT_MAX)  # Initial condition
@@ -44,9 +45,15 @@ def addToTargetHistory(currentTargets):
   np.append(targetHistory, currentTargets - 1)  # -1 because it's used for indexing
   np.sort(targetHistory)
 
-def addTickResult(isSuccess):  
+def addTickResult(isSuccess):
   if not ticksSinceShard in iteratedTicks:
-    iteratedTicks[ticksSinceShard] = np.zeros(((MAX_TARGETS,) * ticksSinceShard) + (2,))
+    try:
+      iteratedTicks[ticksSinceShard] = np.zeros(((MAX_TARGETS,) * ticksSinceShard) + (2,))
+    except:
+      print(MAX_TARGETS)
+      print(ticksSinceShard)
+      print(((MAX_TARGETS,) * ticksSinceShard) + (2,))
+      raise MemoryError
   
   if isSuccess:
     iteratedTicks[ticksSinceShard][tuple(targetHistory)][1] += 1
@@ -56,26 +63,12 @@ def addTickResult(isSuccess):
 for i in range(1, ITERATIONS+1):
   if i % 10000 == 0:
     print("Iteration %d" % i)
-    
-    # Debug
-    import gc
-    gc.collect()  # don't care about stuff that would be garbage collected properly
-    #import objgraph
-    #objgraph.show_most_common_types()
-
-    summarytracker.print_diff()
-    
-    #summary.print_(summary.summarize(muppy.get_objects()))
-    
-    #refbrowser.InteractiveBrowser(iteratedTicks).main()
-    #raw_input("Press Enter to continue...")
-    
-    #print(asizeof(iteratedTicks))
   
   currentTargets = randint(1, MAX_TARGETS)
   addToTargetHistory(currentTargets)
   accumulator += uniform(INCREMENT_MIN, INCREMENT_MAX) / sqrt(currentTargets)
   ticksSinceShard += 1
+  ticksSinceShard = ticksSinceShard <= MAX_ARRAY_DIMENSIONS and ticksSinceShard or MAX_ARRAY_DIMENSIONS
   
   if accumulator > 1:
     addTickResult(True)
@@ -84,9 +77,6 @@ for i in range(1, ITERATIONS+1):
     accumulator -= 1
   else:
     addTickResult(False)
-
-# Debug
-#print(iteratedTicks)
 
 # Save results
 with open("iterationresult.pickle", "w") as file:
