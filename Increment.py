@@ -4,41 +4,33 @@
 from math import sqrt
 import numpy as np
 import itertools
-import json
-import cPickle as pickle
 from random import randint
 from random import uniform
-
-# Debug
-from pympler.asizeof import asizeof
-from pympler import muppy
-from pympler import refbrowser
-from pympler import summary
-from pympler import tracker
-
-# Debug
-summarytracker = tracker.SummaryTracker()
 
 # Constants
 ITERATIONS = 10000
 INCREMENT_MIN = 0
 INCREMENT_MAX = 0.32
-MAX_TARGETS = 5
-MAX_ARRAY_DIMENSIONS = 10
+MAX_TARGETS = 4
+MAX_ARRAY_DIMENSIONS = 8
+FILE_NAME = u"iteratedTicks.npy"
 
 # Load
-#global totalIterations
-with open("iterationresult.pickle", "r") as file:
-  try:
-    iteratedTicks = pickle.load(file)
-  except EOFError:
-    iteratedTicks = {}
-    #totalIterations = 0
-    print("iterationresult.pickle is empty")
+global iteratedTicks
+try:
+  iteratedTicks = np.load(FILE_NAME)
+except EOFError:
+  iteratedTicks = {}
+  print("%s is empty" % FILE_NAME)
+except IOError:
+  iteratedTicks = {}
+  print("%s is empty" % FILE_NAME)
+  
 
 # Core - Incrementation
 def increment_core(iterations=ITERATIONS, targets=None):
   # Variables
+  global iteratedTicks
   if targets is None:
     max_ticks = MAX_ARRAY_DIMENSIONS
   else:
@@ -59,10 +51,11 @@ def increment_core(iterations=ITERATIONS, targets=None):
     accumulator = uniform(INCREMENT_MIN, INCREMENT_MAX)
   
   def addToTargetHistory(currentTargets):
-    np.append(targetHistory, currentTargets - 1)  # -1 because it's used for indexing
-    np.sort(targetHistory)
+    global targetHistory
+    targetHistory = np.sort(np.append(targetHistory, currentTargets - 1))  # -1 because it's used for indexing
 
   def addTickResult(isSuccess):
+    global iteratedTicks
     if not ticksSinceShard in iteratedTicks:
       try:
         iteratedTicks[ticksSinceShard] = np.zeros(((MAX_TARGETS,) * ticksSinceShard) + (2,))
@@ -70,7 +63,7 @@ def increment_core(iterations=ITERATIONS, targets=None):
         print(MAX_TARGETS)
         print(ticksSinceShard)
         print(((MAX_TARGETS,) * ticksSinceShard) + (2,))
-        raise MemoryError
+        raise
     
     if isSuccess:
       iteratedTicks[ticksSinceShard][tuple(targetHistory)][1] += 1
@@ -98,25 +91,17 @@ def increment_core(iterations=ITERATIONS, targets=None):
     
     # Limit calculation depth
     if ticksSinceShard == max_ticks:
-      # Debug
-      #print(ticksSinceShard)
-      
       reset_variables()
-  
-  #global totalIterations
-  #totalIterations += iterations
-  #print("Total iterations: %d" % totalIterations)
       
   # Save results
-  with open("iterationresult.pickle", "w") as file:
-    pickle.dump(iteratedTicks, file)
-  print("Results saved in iterationresult.pickle")
+  np.save(FILE_NAME, iteratedTicks)
+  print("Results saved in %s" % FILE_NAME)
 
 # Calculate randomly
 #increment_core()
 
 # Calculate systematically
-for ticks in range(1, MAX_ARRAY_DIMENSIONS+1):
+for ticks in range(MAX_ARRAY_DIMENSIONS+1, 1, -1):
   for targets in itertools.combinations_with_replacement(range(1, MAX_TARGETS+1), ticks):
     print("Iterating", targets)
     increment_core(targets=targets)
