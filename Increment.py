@@ -9,7 +9,7 @@ from random import randint
 from random import uniform
 
 # Constants
-ITERATIONS = 100000
+ITERATIONS = 1000000
 INCREMENT_MIN = 0
 INCREMENT_MAX = 0.32
 MAX_TARGETS = 5
@@ -72,9 +72,6 @@ def increment_core(iterations=ITERATIONS, targets=None):
       iteratedTicks[tuple(targetHistory)][0] += 1
 
   for i in range(1, iterations+1):
-    #if i % 100000 == 0:
-    #  print("Iteration %d" % i)
-    
     if targets is None:
       currentTargets = randint(1, MAX_TARGETS)
     else:
@@ -99,9 +96,14 @@ def increment_core(iterations=ITERATIONS, targets=None):
 
 # Calculate systematically
 try:
+  total_combinations_with_replacement = 0
+  for targets in itertools.combinations_with_replacement(range(1, MAX_TARGETS+1), MAX_TICKS):  # Lazy af
+    total_combinations_with_replacement += 1
+  combinations_iterator = 0
   for targets in itertools.combinations_with_replacement(range(1, MAX_TARGETS+1), MAX_TICKS):
-    print("Iterating %s" % (" ".join(str(i) for i in targets)))
+    print("Iterating %s (%i/%i)" % (" ".join(str(i) for i in targets)), combinations_iterator, total_combinations_with_replacement)
     increment_core(targets=targets)
+    combinations_iterator += 1
   save_results()
 except KeyboardInterrupt:
   print("\nInterrupted, saving results...\n")
