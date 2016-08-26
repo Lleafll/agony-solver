@@ -162,7 +162,7 @@ def fill_permuted_incrementation(iteration_aim):
 
 # Fill all holes, necessary when there are non-permuted values in numpy array
 # Only fills values where there are iterations already
-def fill_permuted_incrementation(iteration_aim):
+def fill_all_incrementation(iteration_aim):
   try:
     iteration_needed = True
     while iteration_needed:
