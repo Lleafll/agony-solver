@@ -14,11 +14,13 @@ from random import uniform
 # Constants
 #=======================================
 ITERATIONS = 10000
+RESET_MIN = 0
+RESET_MAX = 0.99
 INCREMENT_MIN = 0
 INCREMENT_MAX = 0.32
 MAX_TARGETS = 5
 MAX_TICKS = 10
-FILE_NAME = u"%i_%i_results.npy" % (MAX_TARGETS, MAX_TICKS)
+FILE_NAME = u"%i_%i_%.2f_%.2f_%.2f_%.2f_results.npy" % (MAX_TARGETS, MAX_TICKS, RESET_MIN, RESET_MAX, INCREMENT_MIN, INCREMENT_MAX)
 IMPORT_FROM_FILE = True
 
 #=======================================
@@ -58,7 +60,7 @@ def increment_core(iterations=ITERATIONS, targets=None):
   global ticksSinceShard
   global targetHistory
   global accumulator
-  accumulator = uniform(INCREMENT_MIN, INCREMENT_MAX)  # Initial condition
+  accumulator = uniform(RESET_MIN, RESET_MAX)  # Initial condition
   targetHistory = np.zeros(MAX_TICKS)
   ticksSinceShard = 0
   
@@ -68,7 +70,7 @@ def increment_core(iterations=ITERATIONS, targets=None):
     global accumulator
     ticksSinceShard = 0
     targetHistory = np.zeros(MAX_TICKS)
-    accumulator = uniform(INCREMENT_MIN, INCREMENT_MAX)
+    accumulator = uniform(RESET_MIN, RESET_MAX)
   
   def addToTargetHistory(currentTargets):
     global targetHistory
