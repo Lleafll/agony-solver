@@ -21,7 +21,7 @@ INCREMENT_MAX = 0.32
 MAX_TARGETS = 5
 MAX_TICKS = 10
 FILE_NAME = u"%i_%i_%.2f_%.2f_%.2f_%.2f_results.npy" % (MAX_TARGETS, MAX_TICKS, RESET_MIN, RESET_MAX, INCREMENT_MIN, INCREMENT_MAX)
-IMPORT_FROM_FILE = True
+IMPORT_FROM_FILE = True  # Be wary with setting this to False or otherwise an existing file could get overwritten
 
 #=======================================
 # Load or initialize
@@ -29,13 +29,13 @@ IMPORT_FROM_FILE = True
 global iteratedTicks
 def initialize_iteratedTicks():
   global iteratedTicks
-  iteratedTicks = np.zeros(((MAX_TARGETS+1,) * MAX_TICKS) + (2,))
+  iteratedTicks = np.zeros(((MAX_TARGETS+1,) * MAX_TICKS) + (2,), dtype=np.int)
 
 if IMPORT_FROM_FILE:
   if path.isfile(FILE_NAME):
     iteratedTicks = np.load(FILE_NAME)
   else:
-    raise Exception("Import file not found.") 
+    raise Exception("Import file not found.")
 else:
   initialize_iteratedTicks()
 
@@ -61,24 +61,24 @@ def increment_core(iterations=ITERATIONS, targets=None):
   global targetHistory
   global accumulator
   accumulator = uniform(RESET_MIN, RESET_MAX)  # Initial condition
-  targetHistory = np.zeros(MAX_TICKS)
+  targetHistory = np.zeros(MAX_TICKS, dtype=np.int)
   ticksSinceShard = 0
-  
+
   def reset_variables():
     global ticksSinceShard
     global targetHistory
     global accumulator
     ticksSinceShard = 0
-    targetHistory = np.zeros(MAX_TICKS)
+    targetHistory = np.zeros(MAX_TICKS, dtype=np.int)
     accumulator = uniform(RESET_MIN, RESET_MAX)
-  
+
   def addToTargetHistory(currentTargets):
     global targetHistory
     global ticksSinceShard
     targetHistory[ticksSinceShard] = currentTargets  # ticksSinceShard is not yet incremented
 
   def addTickResult(isSuccess):
-    global iteratedTicks    
+    global iteratedTicks
     if isSuccess:
       iteratedTicks[tuple(targetHistory)][1] += 1
     else:
@@ -89,17 +89,17 @@ def increment_core(iterations=ITERATIONS, targets=None):
       currentTargets = randint(1, MAX_TARGETS)
     else:
       currentTargets = targets[ticksSinceShard]  # ticksSinceShard is not yet incremented
-    
+
     addToTargetHistory(currentTargets)
     accumulator += uniform(INCREMENT_MIN, INCREMENT_MAX) / sqrt(currentTargets)
     ticksSinceShard += 1
-    
+
     if accumulator > 1:
       addTickResult(True)
       reset_variables()
     else:
       addTickResult(False)
-    
+
     # Limit calculation depth
     if ticksSinceShard == max_ticks:
       reset_variables()
@@ -116,14 +116,14 @@ def random_incrementation():
 def permuted_incrementation():
   try:
     while True:
-      
+
       # Just mirroring real loop, LAZY AF
       total_combinations_with_replacement = 0
       for tick_count in range(1, MAX_TICKS+1):
         for target_history in itertools.combinations_with_replacement(range(1, MAX_TARGETS+1), tick_count-1):
           for last_target in range(1, MAX_TARGETS+1):
             total_combinations_with_replacement += 1
-      
+
       combinations_iterator = 1
       for tick_count in range(1, MAX_TICKS+1):
         for target_history in itertools.combinations_with_replacement(range(1, MAX_TARGETS+1), tick_count-1):
@@ -133,7 +133,7 @@ def permuted_incrementation():
             increment_core(targets=targets)
             combinations_iterator += 1
         save_results()
-      
+
   except KeyboardInterrupt:
     print("\nInterrupted\n")
     save_results()
@@ -182,8 +182,8 @@ def fill_all_incrementation(iteration_aim):
   except KeyboardInterrupt:
       print("\nInterrupted, saving results...\n")
       save_results()
-      
-  
+
+
 #=======================================
 # Execution
 #=======================================
