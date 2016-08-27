@@ -22,7 +22,7 @@ filepath = askopenfilename(filetypes=filetypes)
 
 # Load
 iteratedTicks = np.load(filepath)
-MAX_TICKS = len(iteratedTicks.shape) - 1
+MAX_TICKS = iteratedTicks.ndim - 1
 MAX_TARGETS = iteratedTicks.shape[0] - 1
 print("%s loaded" % filepath)
 total_iterations = 0
@@ -37,11 +37,12 @@ print("Total iterations: %i" % total_iterations)
 #=======================================
 def calculate_result(key):
     result = iteratedTicks[key]
+    
     noGain = result[0]
     gain = result[1]
     gainSum = noGain + gain    
-    if gainSum > 0:
-        chance = gain / gainSum
+    if gainSum > 0:        
+        chance = 1.0*gain / gainSum
         if chance > 0:
             return chance
 
@@ -66,7 +67,7 @@ for current_targets in range(1, MAX_TARGETS+1):
         for targets in itertools.product(range(1, MAX_TARGETS+1), repeat=history_targets):  # Different from Increment.py but ensures that all combinations get used
             # Target factor calculation
             target_factor = reduce(mul, targets)  # Product of all targets
-            target_factor = pow(target_factor, 1.0/history_targets)
+            target_factor = pow(1.0*target_factor, 1.0/history_targets)
                     
 ##            target_factor = reduce(mul, map(sqrt, targets)) / history_targets # Product of all targets
             
@@ -76,7 +77,7 @@ for current_targets in range(1, MAX_TARGETS+1):
 ##            target_factor = sum(targets) / (1.0 * history_targets)
                
             chance = calculate_result(targets)
-
+            
             if not chance is None:
                 x = np.append(x, target_factor)
                 y = np.append(y, chance)
