@@ -3,6 +3,7 @@
 #=======================================
 # Modules
 #=======================================
+import ConfigParser
 from math import sqrt
 import numpy as np
 import itertools
@@ -11,16 +12,22 @@ from random import randint
 from random import uniform
 
 #=======================================
+# Load settings
+#=======================================
+Config = ConfigParser.ConfigParser()
+Config.read("settings.ini")
+ITERATIONS = Config.getint("Iteration Settings", "ITERATIONS")
+RESET_MIN = Config.getfloat("Iteration Settings", "RESET_MIN")
+RESET_MAX = Config.getfloat("Iteration Settings", "RESET_MAX")
+INCREMENT_MIN = Config.getfloat("Iteration Settings", "INCREMENT_MIN")
+INCREMENT_MAX = Config.getfloat("Iteration Settings", "INCREMENT_MAX")
+MIN_TARGETS = Config.getint("Iteration Settings", "MIN_TARGETS")
+MAX_TARGETS = Config.getint("Iteration Settings", "MAX_TARGETS")
+MAX_TICKS = Config.getint("Iteration Settings", "MAX_TICKS")
+
+#=======================================
 # Constants
 #=======================================
-ITERATIONS = 10000
-RESET_MIN = 0
-RESET_MAX = 0.32
-INCREMENT_MIN = 0
-INCREMENT_MAX = 0.32
-MIN_TARGETS = 6
-MAX_TARGETS = 10
-MAX_TICKS = 10
 FILE_NAME = u"%i_%i_%i_%.2f_%.2f_%.2f_%.2f_results.npy" % (MIN_TARGETS, MAX_TARGETS, MAX_TICKS, RESET_MIN, RESET_MAX, INCREMENT_MIN, INCREMENT_MAX)
 
 #=======================================
@@ -188,4 +195,4 @@ def fill_all_incrementation(iteration_aim):
 #=======================================
 # Execution
 #=======================================
-fill_permuted_incrementation(1000)
+fill_permuted_incrementation(10000)
