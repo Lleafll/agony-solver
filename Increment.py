@@ -48,6 +48,9 @@ def save_results():
 #=======================================
 # Core - Incrementation
 #=======================================
+def target_history_tuple_to_key(target_history):
+    return tuple(i - MIN_TARGETS + 1 for i in target_history)
+
 def increment_core(iterations=ITERATIONS, targets=None):
   # Variables
   global iteratedTicks
@@ -73,14 +76,14 @@ def increment_core(iterations=ITERATIONS, targets=None):
   def addToTargetHistory(currentTargets):
     global targetHistory
     global ticksSinceShard
-    targetHistory[ticksSinceShard] = currentTargets - MIN_TARGETS + 1  # ticksSinceShard is not yet incremented
+    targetHistory[ticksSinceShard] = currentTargets  # ticksSinceShard is not yet incremented
 
   def addTickResult(isSuccess):
     global iteratedTicks
     if isSuccess:
-      iteratedTicks[tuple(targetHistory)][1] += 1
+      iteratedTicks[target_history_tuple_to_key(targetHistory)][1] += 1
     else:
-      iteratedTicks[tuple(targetHistory)][0] += 1
+      iteratedTicks[target_history_tuple_to_key(targetHistory)][0] += 1
 
   for i in range(1, iterations+1):
     if targets is None:
@@ -147,7 +150,7 @@ def fill_permuted_incrementation(iteration_aim):
         for target_history in itertools.combinations_with_replacement(range(MIN_TARGETS, MAX_TARGETS+1), tick_count-1):
           for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
               targets = target_history + (last_target,)
-              iteratedTick = iteratedTicks[(targets - MIN_TARGETS + 1) + (0,) * (MAX_TICKS - tick_count)]
+              iteratedTick = iteratedTicks[target_history_tuple_to_key(targets) + (0,) * (MAX_TICKS - tick_count)]
               iteration_sum = iteratedTick[0] + iteratedTick[1]
               if iteration_sum < iteration_aim:
                 iteration_needed = True
@@ -170,7 +173,7 @@ def fill_all_incrementation(iteration_aim):
         for target_history in itertools.product(range(MIN_TARGETS, MAX_TARGETS+1), repeat=tick_count-1):
           for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
               targets = target_history + (last_target,)
-              iteratedTick = iteratedTicks[targets + (0,) * (MAX_TICKS - tick_count)]
+              iteratedTick = iteratedTicks[target_history_tuple_to_key(targets) + (0,) * (MAX_TICKS - tick_count)]
               iteration_sum = iteratedTick[0] + iteratedTick[1]
               if iteration_sum > 0 and iteration_sum < iteration_aim:
                 iteration_needed = True
