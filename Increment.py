@@ -53,10 +53,36 @@ def save_results():
   print("Results saved to %s" % FILE_NAME)
 
 #=======================================
+# Memoization
+#=======================================
+def memodict(f):  # Currently not used
+    """ Memoization decorator for a function taking a single argument """
+    class memodict(dict):
+        def __missing__(self, key):
+            ret = self[key] = f(key)
+            return ret 
+    return memodict().__getitem__
+
+#=======================================
 # Core - Incrementation
 #=======================================
-def target_history_tuple_to_key(target_history):
-    return tuple(i > 0 and i - MIN_TARGETS + 1 or i for i in target_history)
+target_history_tuple_to_key_memo = {}
+def target_history_tuple_to_key(target_history, max_ticks):
+    memo_key = (target_history, max_ticks)
+    if memo_key in target_history_tuple_to_key_memo:
+        return target_history_tuple_to_key_memo[memo_key]
+    else:
+        key = tuple(i - MIN_TARGETS + 1 for i in target_history)
+        key += (max_ticks - len(target_history)) * (0,)
+        target_history_tuple_to_key_memo[memo_key] = key
+        return key
+
+def addTickResult(key, isSuccess):
+  global iteratedTicks
+  if isSuccess:
+    iteratedTicks[key][1] += 1
+  else:
+    iteratedTicks[key][0] += 1
 
 def increment_core(iterations=ITERATIONS, targets=None):
   # Variables
@@ -69,7 +95,7 @@ def increment_core(iterations=ITERATIONS, targets=None):
   global targetHistory
   global accumulator
   accumulator = uniform(RESET_MIN, RESET_MAX)  # Initial condition
-  targetHistory = np.zeros(MAX_TICKS, dtype=np.int)
+  targetHistory = ()
   ticksSinceShard = 0
 
   def reset_variables():
@@ -77,20 +103,13 @@ def increment_core(iterations=ITERATIONS, targets=None):
     global targetHistory
     global accumulator
     ticksSinceShard = 0
-    targetHistory = np.zeros(MAX_TICKS, dtype=np.int)
+    targetHistory = ()
     accumulator = uniform(RESET_MIN, RESET_MAX)
 
   def addToTargetHistory(currentTargets):
     global targetHistory
     global ticksSinceShard
-    targetHistory[ticksSinceShard] = currentTargets  # ticksSinceShard is not yet incremented
-
-  def addTickResult(isSuccess):
-    global iteratedTicks
-    if isSuccess:
-      iteratedTicks[target_history_tuple_to_key(targetHistory)][1] += 1
-    else:
-      iteratedTicks[target_history_tuple_to_key(targetHistory)][0] += 1
+    targetHistory += (currentTargets,)  # ticksSinceShard is not yet incremented
 
   for i in range(1, iterations+1):
     if targets is None:
@@ -103,10 +122,10 @@ def increment_core(iterations=ITERATIONS, targets=None):
     ticksSinceShard += 1
 
     if accumulator > 1:
-      addTickResult(True)
+      addTickResult(target_history_tuple_to_key(targetHistory, max_ticks), True)
       reset_variables()
     else:
-      addTickResult(False)
+      addTickResult(target_history_tuple_to_key(targetHistory, max_ticks), False)
 
     # Limit calculation depth
     if ticksSinceShard == max_ticks:
@@ -157,7 +176,7 @@ def fill_permuted_incrementation(iteration_aim):
         for target_history in itertools.combinations_with_replacement(range(MIN_TARGETS, MAX_TARGETS+1), tick_count-1):
           for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
               targets = target_history + (last_target,)
-              iteratedTick = iteratedTicks[target_history_tuple_to_key(targets) + (0,) * (MAX_TICKS - tick_count)]
+              iteratedTick = iteratedTicks[target_history_tuple_to_key(targets, MAX_TICKS)]
               iteration_sum = iteratedTick[0] + iteratedTick[1]
               if iteration_sum < iteration_aim:
                 iteration_needed = True
@@ -180,7 +199,7 @@ def fill_all_incrementation(iteration_aim):
         for target_history in itertools.product(range(MIN_TARGETS, MAX_TARGETS+1), repeat=tick_count-1):
           for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
               targets = target_history + (last_target,)
-              iteratedTick = iteratedTicks[target_history_tuple_to_key(targets) + (0,) * (MAX_TICKS - tick_count)]
+              iteratedTick = iteratedTicks[target_history_tuple_to_key(targets, MAX_TICKS)]
               iteration_sum = iteratedTick[0] + iteratedTick[1]
               if iteration_sum > 0 and iteration_sum < iteration_aim:
                 iteration_needed = True
@@ -196,3 +215,12 @@ def fill_all_incrementation(iteration_aim):
 # Execution
 #=======================================
 fill_permuted_incrementation(10000)
+
+#=======================================
+# Profiling
+#=======================================
+#import cProfile
+#cProfile.run("fill_permuted_incrementation(10000)", "fill_permuted_incrementation.profile")
+#import pstats
+#stats = pstats.Stats("fill_permuted_incrementation.profile")
+#stats.strip_dirs().sort_stats("time").print_stats()
