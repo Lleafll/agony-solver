@@ -56,7 +56,7 @@ def save_results():
 # Core - Incrementation
 #=======================================
 def target_history_tuple_to_key(target_history):
-    return tuple(i - MIN_TARGETS + 1 for i in target_history)
+    return tuple(i > 0 and i - MIN_TARGETS + 1 or i for i in target_history)
 
 def increment_core(iterations=ITERATIONS, targets=None):
   # Variables
