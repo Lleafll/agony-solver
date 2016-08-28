@@ -6,7 +6,6 @@
 import ConfigParser
 import cPickle
 from math import sqrt
-import numpy as np
 import itertools
 import os.path as path
 from random import randint
@@ -25,6 +24,7 @@ INCREMENT_MAX = Config.getfloat("Iteration Settings", "INCREMENT_MAX")
 MIN_TARGETS = Config.getint("Iteration Settings", "MIN_TARGETS")
 MAX_TARGETS = Config.getint("Iteration Settings", "MAX_TARGETS")
 MAX_TICKS = Config.getint("Iteration Settings", "MAX_TICKS")
+PRINT_OUTPUT = Config.getboolean("Iteration Settings", "PRINT_OUTPUT")
 
 #=======================================
 # Constants
@@ -187,7 +187,8 @@ def fill_permuted_incrementation(iteration_aim):
                             iteration_sum = 0
                         if iteration_sum < iteration_aim:
                             iteration_needed = True
-                            print("Iterating %s (currently %i iterations)" % (" ".join(str(i) for i in targets), iteration_sum))
+                            if PRINT_OUTPUT:
+                                print("Iterating %s (currently %i iterations)" % (" ".join(str(i) for i in targets), iteration_sum))
                             increment_core(targets=targets)
             save_results()
     except KeyboardInterrupt:
@@ -221,7 +222,7 @@ def fill_permuted_incrementation(iteration_aim):
 #=======================================
 # Execution
 #=======================================
-fill_permuted_incrementation(1)
+fill_permuted_incrementation(100)
 
 #=======================================
 # Profiling
