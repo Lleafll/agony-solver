@@ -4,9 +4,6 @@
 # Modules
 #=======================================
 import itertools
-import math
-from math import log
-from math import sqrt
 import matplotlib.pyplot as plt
 import numpy as np
 from operator import mul
