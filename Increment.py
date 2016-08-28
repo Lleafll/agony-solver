@@ -4,6 +4,7 @@
 # Modules
 #=======================================
 import ConfigParser
+import cPickle
 from math import sqrt
 import numpy as np
 import itertools
@@ -28,7 +29,7 @@ MAX_TICKS = Config.getint("Iteration Settings", "MAX_TICKS")
 #=======================================
 # Constants
 #=======================================
-FILE_NAME = u"%i_%i_%i_%.2f_%.2f_%.2f_%.2f_results.npy" % (MIN_TARGETS, MAX_TARGETS, MAX_TICKS, RESET_MIN, RESET_MAX, INCREMENT_MIN, INCREMENT_MAX)
+FILE_NAME = u"%i_%i_%i_%.2f_%.2f_%.2f_%.2f_results.pickle" % (MIN_TARGETS, MAX_TARGETS, MAX_TICKS, RESET_MIN, RESET_MAX, INCREMENT_MIN, INCREMENT_MAX)
 
 #=======================================
 # Load or initialize
@@ -36,21 +37,28 @@ FILE_NAME = u"%i_%i_%i_%.2f_%.2f_%.2f_%.2f_results.npy" % (MIN_TARGETS, MAX_TARG
 global iteratedTicks
 def initialize_iteratedTicks():
   global iteratedTicks
-  iteratedTicks = np.zeros(((MAX_TARGETS-MIN_TARGETS+2,) * MAX_TICKS) + (2,), dtype=np.int)
+  iteratedTicks = {}
 
 if path.isfile(FILE_NAME):
-  iteratedTicks = np.load(FILE_NAME)
+    try:
+        with open(FILE_NAME, "rb") as f:
+            iteratedTicks = cPickle.load(f)
+    except EOFError:
+        print("File is empty")
+        initialize_iteratedTicks()
 else:
-  print("Import file not found.")
-  initialize_iteratedTicks()
+    print("Import file not found.")
+    initialize_iteratedTicks()
 
 #=======================================
 # Save results
 #=======================================
 def save_results():
-  print("Saving results...")
-  np.save(FILE_NAME, iteratedTicks)
-  print("Results saved to %s" % FILE_NAME)
+    print("Saving results...")
+    with open(FILE_NAME, "wb") as f:
+        cPickle.dump(iteratedTicks, f)
+    print("Results saved to %s" % FILE_NAME)
+        
 
 #=======================================
 # Memoization
@@ -66,23 +74,19 @@ def memodict(f):  # Currently not used
 #=======================================
 # Core - Incrementation
 #=======================================
-target_history_tuple_to_key_memo = {}
-def target_history_tuple_to_key(target_history, max_ticks):
-    memo_key = (target_history, max_ticks)
-    if memo_key in target_history_tuple_to_key_memo:
-        return target_history_tuple_to_key_memo[memo_key]
-    else:
-        key = tuple(i - MIN_TARGETS + 1 for i in target_history)
-        key += (max_ticks - len(target_history)) * (0,)
-        target_history_tuple_to_key_memo[memo_key] = key
-        return key
-
 def addTickResult(key, isSuccess):
   global iteratedTicks
-  if isSuccess:
-    iteratedTicks[key][1] += 1
-  else:
-    iteratedTicks[key][0] += 1
+  try:
+      if isSuccess:
+        iteratedTicks[key][1] += 1
+      else:
+        iteratedTicks[key][0] += 1
+  except KeyError:
+      iteratedTicks[key] = [0, 0]
+      if isSuccess:
+        iteratedTicks[key][1] += 1
+      else:
+        iteratedTicks[key][0] += 1
 
 def increment_core(iterations=ITERATIONS, targets=None):
   # Variables
@@ -122,10 +126,10 @@ def increment_core(iterations=ITERATIONS, targets=None):
     ticksSinceShard += 1
 
     if accumulator > 1:
-      addTickResult(target_history_tuple_to_key(targetHistory, max_ticks), True)
+      addTickResult(targetHistory, True)
       reset_variables()
     else:
-      addTickResult(target_history_tuple_to_key(targetHistory, max_ticks), False)
+      addTickResult(targetHistory, False)
 
     # Limit calculation depth
     if ticksSinceShard == max_ticks:
@@ -136,85 +140,88 @@ def increment_core(iterations=ITERATIONS, targets=None):
 # Wrappers
 #=======================================
 # Calculate randomly
-def random_incrementation():
-  increment_core()
+#def random_incrementation():
+#  increment_core()
 
-# Calculate systematically
-def permuted_incrementation():
-  try:
-    while True:
-
-      # Just mirroring real loop, LAZY AF
-      total_combinations_with_replacement = 0
-      for tick_count in range(1, MAX_TICKS+1):
-        for target_history in itertools.combinations_with_replacement(range(MIN_TARGETS, MAX_TARGETS+1), tick_count-1):
-          for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
-            total_combinations_with_replacement += 1
-
-      combinations_iterator = 1
-      for tick_count in range(1, MAX_TICKS+1):
-        for target_history in itertools.combinations_with_replacement(range(MIN_TARGETS, MAX_TARGETS+1), tick_count-1):
-          for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
-            targets = target_history + (last_target,)
-            print("Iterating %s (%i/%i)" % (" ".join(str(i) for i in targets), combinations_iterator, total_combinations_with_replacement))
-            increment_core(targets=targets)
-            combinations_iterator += 1
-        save_results()
-
-  except KeyboardInterrupt:
-    print("\nInterrupted\n")
-    save_results()
+## Calculate systematically
+#def permuted_incrementation():
+#  try:
+#    while True:
+#
+#      # Just mirroring real loop, LAZY AF
+#      total_combinations_with_replacement = 0
+#      for tick_count in range(1, MAX_TICKS+1):
+#        for target_history in itertools.combinations_with_replacement(range(MIN_TARGETS, MAX_TARGETS+1), tick_count-1):
+#          for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
+#            total_combinations_with_replacement += 1
+#
+#      combinations_iterator = 1
+#      for tick_count in range(1, MAX_TICKS+1):
+#        for target_history in itertools.combinations_with_replacement(range(MIN_TARGETS, MAX_TARGETS+1), tick_count-1):
+#          for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
+#            targets = target_history + (last_target,)
+#            print("Iterating %s (%i/%i)" % (" ".join(str(i) for i in targets), combinations_iterator, total_combinations_with_replacement))
+#            increment_core(targets=targets)
+#            combinations_iterator += 1
+#        save_results()
+#
+#  except KeyboardInterrupt:
+#    print("\nInterrupted\n")
+#    save_results()
 
 # Fill holes in permuted values
 def fill_permuted_incrementation(iteration_aim):
-  try:
-    iteration_needed = True
-    while iteration_needed:
-      iteration_needed = False
-      for tick_count in range(MAX_TICKS, 0, -1):
-        print("Filling %i ticks" % tick_count)
-        for target_history in itertools.combinations_with_replacement(range(MIN_TARGETS, MAX_TARGETS+1), tick_count-1):
-          for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
-              targets = target_history + (last_target,)
-              iteratedTick = iteratedTicks[target_history_tuple_to_key(targets, MAX_TICKS)]
-              iteration_sum = iteratedTick[0] + iteratedTick[1]
-              if iteration_sum < iteration_aim:
-                iteration_needed = True
-                print("Iterating %s (currently %i iterations)" % (" ".join(str(i) for i in targets), iteration_sum))
-                increment_core(targets=targets)
-      save_results()
-  except KeyboardInterrupt:
-      print("\nInterrupted, saving results...\n")
-      save_results()
+    try:
+        iteration_needed = True
+        while iteration_needed:
+            iteration_needed = False
+            for tick_count in range(MAX_TICKS, 0, -1):
+                print("Filling %i ticks" % tick_count)
+                for target_history in itertools.combinations_with_replacement(range(MIN_TARGETS, MAX_TARGETS+1), tick_count-1):
+                    for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
+                        targets = target_history + (last_target,)
+                        try:
+                            iteratedTick = iteratedTicks[targets]
+                            iteration_sum = iteratedTick[0] + iteratedTick[1]
+                        except KeyError:
+                            iteration_sum = 0
+                        if iteration_sum < iteration_aim:
+                            iteration_needed = True
+                            print("Iterating %s (currently %i iterations)" % (" ".join(str(i) for i in targets), iteration_sum))
+                            increment_core(targets=targets)
+            save_results()
+    except KeyboardInterrupt:
+        print("\nInterrupted, saving results...\n")
+        save_results()
 
-# Fill all holes, necessary when there are non-permuted values in numpy array
-# Only fills values where there are iterations already
-def fill_all_incrementation(iteration_aim):
-  try:
-    iteration_needed = True
-    while iteration_needed:
-      iteration_needed = False
-      for tick_count in range(MAX_TICKS, 0, -1):
-        print("Filling %i ticks" % tick_count)
-        for target_history in itertools.product(range(MIN_TARGETS, MAX_TARGETS+1), repeat=tick_count-1):
-          for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
-              targets = target_history + (last_target,)
-              iteratedTick = iteratedTicks[target_history_tuple_to_key(targets, MAX_TICKS)]
-              iteration_sum = iteratedTick[0] + iteratedTick[1]
-              if iteration_sum > 0 and iteration_sum < iteration_aim:
-                iteration_needed = True
-                print("Iterating %s (currently %i iterations)" % (" ".join(str(i) for i in targets), iteration_sum))
-                increment_core(targets=targets)
-      save_results()
-  except KeyboardInterrupt:
-      print("\nInterrupted, saving results...\n")
-      save_results()
+## Fill all holes, necessary when there are non-permuted values in numpy array
+## Only fills values where there are iterations already
+#def fill_all_incrementation(iteration_aim):
+#  try:
+#    iteration_needed = True
+#    while iteration_needed:
+#      iteration_needed = False
+#      for tick_count in range(MAX_TICKS, 0, -1):
+#        print("Filling %i ticks" % tick_count)
+#        for target_history in itertools.product(range(MIN_TARGETS, MAX_TARGETS+1), repeat=tick_count-1):
+#          for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
+#              targets = target_history + (last_target,)
+#              iteratedTick = iteratedTicks[target_history_tuple_to_key(targets, MAX_TICKS)]
+#              iteration_sum = iteratedTick[0] + iteratedTick[1]
+#              if iteration_sum > 0 and iteration_sum < iteration_aim:
+#                iteration_needed = True
+#                print("Iterating %s (currently %i iterations)" % (" ".join(str(i) for i in targets), iteration_sum))
+#                increment_core(targets=targets)
+#      save_results()
+#  except KeyboardInterrupt:
+#      print("\nInterrupted, saving results...\n")
+#      save_results()
 
 
 #=======================================
 # Execution
 #=======================================
-fill_permuted_incrementation(10000)
+fill_permuted_incrementation(1)
 
 #=======================================
 # Profiling
