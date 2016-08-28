@@ -15,13 +15,13 @@ from random import uniform
 #=======================================
 ITERATIONS = 10000
 RESET_MIN = 0
-RESET_MAX = 0.99
+RESET_MAX = 0.32
 INCREMENT_MIN = 0
 INCREMENT_MAX = 0.32
-MAX_TARGETS = 5
+MIN_TARGETS = 6
+MAX_TARGETS = 10
 MAX_TICKS = 10
-FILE_NAME = u"%i_%i_%.2f_%.2f_%.2f_%.2f_results.npy" % (MAX_TARGETS, MAX_TICKS, RESET_MIN, RESET_MAX, INCREMENT_MIN, INCREMENT_MAX)
-IMPORT_FROM_FILE = True  # Be wary with setting this to False or otherwise an existing file could get overwritten
+FILE_NAME = u"%i_%i_%i_%.2f_%.2f_%.2f_%.2f_results.npy" % (MIN_TARGETS, MAX_TARGETS, MAX_TICKS, RESET_MIN, RESET_MAX, INCREMENT_MIN, INCREMENT_MAX)
 
 #=======================================
 # Load or initialize
@@ -29,14 +29,12 @@ IMPORT_FROM_FILE = True  # Be wary with setting this to False or otherwise an ex
 global iteratedTicks
 def initialize_iteratedTicks():
   global iteratedTicks
-  iteratedTicks = np.zeros(((MAX_TARGETS+1,) * MAX_TICKS) + (2,), dtype=np.int)
+  iteratedTicks = np.zeros(((MAX_TARGETS-MIN_TARGETS+2,) * MAX_TICKS) + (2,), dtype=np.int)
 
-if IMPORT_FROM_FILE:
-  if path.isfile(FILE_NAME):
-    iteratedTicks = np.load(FILE_NAME)
-  else:
-    raise Exception("Import file not found.")
+if path.isfile(FILE_NAME):
+  iteratedTicks = np.load(FILE_NAME)
 else:
+  print("Import file not found.")
   initialize_iteratedTicks()
 
 #=======================================
@@ -75,7 +73,7 @@ def increment_core(iterations=ITERATIONS, targets=None):
   def addToTargetHistory(currentTargets):
     global targetHistory
     global ticksSinceShard
-    targetHistory[ticksSinceShard] = currentTargets  # ticksSinceShard is not yet incremented
+    targetHistory[ticksSinceShard] = currentTargets - MIN_TARGETS + 1  # ticksSinceShard is not yet incremented
 
   def addTickResult(isSuccess):
     global iteratedTicks
@@ -86,7 +84,7 @@ def increment_core(iterations=ITERATIONS, targets=None):
 
   for i in range(1, iterations+1):
     if targets is None:
-      currentTargets = randint(1, MAX_TARGETS)
+      currentTargets = randint(MIN_TARGETS, MAX_TARGETS)
     else:
       currentTargets = targets[ticksSinceShard]  # ticksSinceShard is not yet incremented
 
@@ -120,14 +118,14 @@ def permuted_incrementation():
       # Just mirroring real loop, LAZY AF
       total_combinations_with_replacement = 0
       for tick_count in range(1, MAX_TICKS+1):
-        for target_history in itertools.combinations_with_replacement(range(1, MAX_TARGETS+1), tick_count-1):
-          for last_target in range(1, MAX_TARGETS+1):
+        for target_history in itertools.combinations_with_replacement(range(MIN_TARGETS, MAX_TARGETS+1), tick_count-1):
+          for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
             total_combinations_with_replacement += 1
 
       combinations_iterator = 1
       for tick_count in range(1, MAX_TICKS+1):
-        for target_history in itertools.combinations_with_replacement(range(1, MAX_TARGETS+1), tick_count-1):
-          for last_target in range(1, MAX_TARGETS+1):
+        for target_history in itertools.combinations_with_replacement(range(MIN_TARGETS, MAX_TARGETS+1), tick_count-1):
+          for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
             targets = target_history + (last_target,)
             print("Iterating %s (%i/%i)" % (" ".join(str(i) for i in targets), combinations_iterator, total_combinations_with_replacement))
             increment_core(targets=targets)
@@ -146,10 +144,10 @@ def fill_permuted_incrementation(iteration_aim):
       iteration_needed = False
       for tick_count in range(MAX_TICKS, 0, -1):
         print("Filling %i ticks" % tick_count)
-        for target_history in itertools.combinations_with_replacement(range(1, MAX_TARGETS+1), tick_count-1):
-          for last_target in range(1, MAX_TARGETS+1):
+        for target_history in itertools.combinations_with_replacement(range(MIN_TARGETS, MAX_TARGETS+1), tick_count-1):
+          for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
               targets = target_history + (last_target,)
-              iteratedTick = iteratedTicks[targets + (0,) * (MAX_TICKS - tick_count)]
+              iteratedTick = iteratedTicks[(targets - MIN_TARGETS + 1) + (0,) * (MAX_TICKS - tick_count)]
               iteration_sum = iteratedTick[0] + iteratedTick[1]
               if iteration_sum < iteration_aim:
                 iteration_needed = True
@@ -169,8 +167,8 @@ def fill_all_incrementation(iteration_aim):
       iteration_needed = False
       for tick_count in range(MAX_TICKS, 0, -1):
         print("Filling %i ticks" % tick_count)
-        for target_history in itertools.product(range(1, MAX_TARGETS+1), repeat=tick_count-1):
-          for last_target in range(1, MAX_TARGETS+1):
+        for target_history in itertools.product(range(MIN_TARGETS, MAX_TARGETS+1), repeat=tick_count-1):
+          for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
               targets = target_history + (last_target,)
               iteratedTick = iteratedTicks[targets + (0,) * (MAX_TICKS - tick_count)]
               iteration_sum = iteratedTick[0] + iteratedTick[1]
