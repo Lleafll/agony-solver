@@ -123,7 +123,7 @@ def iterate_targets(current_targets, isPlotEnabled):
             opt = None
         
         if OUTPUT_AS_LUA_TABLE:
-            if opt == None:
+            if opt is None:
                 print("  [%i] = {0, 0, 0}," % (history_targets))
             else:
                 print("  [%i] = {%f, %f, %f}," % (history_targets, opt[0], opt[1], opt[2]))
