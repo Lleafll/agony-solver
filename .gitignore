@@ -1,3 +1,14 @@
+*.bat
+*.c
+*.def
+*.html
+*.lnk
 *.ini
 *.npy
+*.o
 *.pickle
+*.profile
+*.pyd
+*.Result
+
+ProfileLog.txt

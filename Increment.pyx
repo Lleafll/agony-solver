@@ -3,28 +3,31 @@
 #=======================================
 # Modules
 #=======================================
-import ConfigParser
-import cProfile
-import cPickle
-from math import sqrt
+import configparser
 import itertools
+from libc.stdlib cimport rand, RAND_MAX
 import os.path as path
+import pickle
+import cProfile
+from cpython cimport bool
 from random import uniform
 
 #=======================================
 # Load settings
 #=======================================
-Config = ConfigParser.ConfigParser()
+Config = configparser.ConfigParser()
 Config.read("settings.ini")
-ITERATIONS = Config.getint("Iteration Settings", "ITERATIONS")
-RESET_MIN = Config.getfloat("Iteration Settings", "RESET_MIN")
-RESET_MAX = Config.getfloat("Iteration Settings", "RESET_MAX")
-INCREMENT_MIN = Config.getfloat("Iteration Settings", "INCREMENT_MIN")
-INCREMENT_MAX = Config.getfloat("Iteration Settings", "INCREMENT_MAX")
-MIN_TARGETS = Config.getint("Iteration Settings", "MIN_TARGETS")
-MAX_TARGETS = Config.getint("Iteration Settings", "MAX_TARGETS")
-MAX_TICKS = Config.getint("Iteration Settings", "MAX_TICKS")
-PRINT_OUTPUT = Config.getboolean("Iteration Settings", "PRINT_OUTPUT")
+cdef:
+    unsigned int ITERATIONS = Config.getint("Iteration Settings", "ITERATIONS")
+    float RESET_MIN = Config.getfloat("Iteration Settings", "RESET_MIN")
+    float RESET_MAX = Config.getfloat("Iteration Settings", "RESET_MAX")
+    float INCREMENT_MIN = Config.getfloat("Iteration Settings", "INCREMENT_MIN")
+    float INCREMENT_MAX = Config.getfloat("Iteration Settings", "INCREMENT_MAX")
+    unsigned int MIN_TARGETS = Config.getint("Iteration Settings", "MIN_TARGETS")
+    unsigned int MAX_TARGETS = Config.getint("Iteration Settings", "MAX_TARGETS")
+    unsigned int MAX_TICKS = Config.getint("Iteration Settings", "MAX_TICKS")
+    bool PRINT_OUTPUT = Config.getboolean("Iteration Settings", "PRINT_OUTPUT")
+    bool DEBUG = Config.getboolean("Iteration Settings", "DEBUG")
 
 #=======================================
 # Constants
@@ -34,15 +37,15 @@ FILE_NAME = u"%i_%i_%i_%.2f_%.2f_%.2f_%.2f_results.pickle" % (MIN_TARGETS, MAX_T
 #=======================================
 # Load or initialize
 #=======================================
-global iteratedTicks
+cdef dict iteratedTicks
 def initialize_iteratedTicks():
   global iteratedTicks
   iteratedTicks = {}
 
-if path.isfile(FILE_NAME):
+if not DEBUG and path.isfile(FILE_NAME):
     try:
         with open(FILE_NAME, "rb") as f:
-            iteratedTicks = cPickle.load(f)
+            iteratedTicks = pickle.load(f)
     except EOFError:
         print("File is empty")
         initialize_iteratedTicks()
@@ -53,28 +56,18 @@ else:
 #=======================================
 # Save results
 #=======================================
-def save_results():
+cdef void save_results():
+    if DEBUG:
+        return
     print("Saving results...")
     with open(FILE_NAME, "wb") as f:
-        cPickle.dump(iteratedTicks, f)
+        pickle.dump(iteratedTicks, f)
     print("Results saved to %s" % FILE_NAME)
-        
-
-#=======================================
-# Memoization
-#=======================================
-def memodict(f):  # Currently not used
-    """ Memoization decorator for a function taking a single argument """
-    class memodict(dict):
-        def __missing__(self, key):
-            ret = self[key] = f(key)
-            return ret 
-    return memodict().__getitem__
 
 #=======================================
 # Core - Incrementation
 #=======================================
-def addTickResult(key, isSuccess):
+cdef void addTickResult(tuple key, bool isSuccess):
   global iteratedTicks
   try:
       if isSuccess:
@@ -88,32 +81,38 @@ def addTickResult(key, isSuccess):
       else:
         iteratedTicks[key][0] += 1
 
-global ticksSinceShard
-global targetHistory
-global accumulator
-def reset_variables():
+cdef:
+    int ticksSinceShard
+    tuple targetHistory
+    float accumulator
+
+cdef void reset_variables():
     global ticksSinceShard
     global targetHistory
     global accumulator
     ticksSinceShard = 0
     targetHistory = ()
-    accumulator = uniform(RESET_MIN, RESET_MAX)
+    accumulator = rand() / (RAND_MAX * RESET_MAX) - RESET_MIN
 
-def increment_core(targets, iterations=ITERATIONS):
+cdef float rng_increment():
+    return rand() * INCREMENT_MAX / RAND_MAX - INCREMENT_MIN
+
+cdef void increment_core(tuple targets, unsigned int max_iterations):
     # Variables
     global iteratedTicks  
     global ticksSinceShard
     global targetHistory
     global accumulator
     
-    iteration_counter = 0
-    while iteration_counter < iterations:
+    cdef unsigned int iteration_counter = 0
+    cdef unsigned int currentTargets
+    while iteration_counter < max_iterations:
         reset_variables()
         for currentTargets in targets:
             iteration_counter += 1
             
             targetHistory += (currentTargets,)
-            accumulator += uniform(INCREMENT_MIN, INCREMENT_MAX) / sqrt(currentTargets)
+            accumulator += rng_increment()
             ticksSinceShard += 1
         
             if accumulator > 1:
@@ -127,10 +126,12 @@ def increment_core(targets, iterations=ITERATIONS):
 # Wrappers
 #=======================================
 # Fill holes in permuted values
-pr = cProfile.Profile()
+#pr = cProfile.Profile()
+cdef tuple targets
 def fill_permuted_incrementation(iteration_aim):
     try:
         iteration_needed = True
+        iterations_total = 0
         while iteration_needed:
             iteration_needed = False
             for tick_count in range(MAX_TICKS, 0, -1):
@@ -145,9 +146,12 @@ def fill_permuted_incrementation(iteration_aim):
                             iteration_sum = 0
                         if iteration_sum < iteration_aim:
                             iteration_needed = True
-                            if PRINT_OUTPUT:
+                            increment_core(targets, ITERATIONS)
+                            iterations_total += ITERATIONS
+                            if iterations_total > 10000000 and PRINT_OUTPUT:
                                 print("Iterating %s (currently %i iterations)" % (" ".join(str(i) for i in targets), iteration_sum))
-                            increment_core(targets)
+                                iterations_total = 0
+
             save_results()
     except KeyboardInterrupt:
         print("\nInterrupted, saving results...\n")
@@ -156,7 +160,7 @@ def fill_permuted_incrementation(iteration_aim):
 #=======================================
 # Execution
 #=======================================
-fill_permuted_incrementation(10000)
+#fill_permuted_incrementation(100)
 
 #=======================================
 # Profiling
