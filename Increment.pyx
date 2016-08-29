@@ -3,13 +3,13 @@
 #==============================================================================
 #  Modules
 #==============================================================================
+cimport cython
 import configparser
 import itertools
 from libc.stdlib cimport rand, RAND_MAX
 import os.path as path
 import pickle
 import cProfile
-from cpython cimport bool
 from random import uniform
 
 #==============================================================================
@@ -18,16 +18,17 @@ from random import uniform
 Config = configparser.ConfigParser()
 Config.read("settings.ini")
 cdef:
-    unsigned int ITERATIONS = Config.getint("Iteration Settings", "ITERATIONS")
+    int ITERATIONS = Config.getint("Iteration Settings", "ITERATIONS")
     float RESET_MIN = Config.getfloat("Iteration Settings", "RESET_MIN")
     float RESET_MAX = Config.getfloat("Iteration Settings", "RESET_MAX")
     float INCREMENT_MIN = Config.getfloat("Iteration Settings", "INCREMENT_MIN")
     float INCREMENT_MAX = Config.getfloat("Iteration Settings", "INCREMENT_MAX")
-    unsigned int MIN_TARGETS = Config.getint("Iteration Settings", "MIN_TARGETS")
-    unsigned int MAX_TARGETS = Config.getint("Iteration Settings", "MAX_TARGETS")
-    unsigned int MAX_TICKS = Config.getint("Iteration Settings", "MAX_TICKS")
-    bool PRINT_OUTPUT = Config.getboolean("Iteration Settings", "PRINT_OUTPUT")
-    bool DEBUG = Config.getboolean("Iteration Settings", "DEBUG")
+    int MIN_TARGETS = Config.getint("Iteration Settings", "MIN_TARGETS")
+    int MAX_TARGETS = Config.getint("Iteration Settings", "MAX_TARGETS")
+    int MAX_TICKS = Config.getint("Iteration Settings", "MAX_TICKS")
+    int PRINT_OUTPUT_EVERY = Config.getboolean("Iteration Settings", "PRINT_OUTPUT_EVERY")
+PRINT_OUTPUT = Config.getboolean("Iteration Settings", "PRINT_OUTPUT")
+DEBUG = Config.getboolean("Iteration Settings", "DEBUG")
 
 #==============================================================================
 #  Constants
@@ -56,7 +57,7 @@ else:
 #==============================================================================
 #  Save results
 #==============================================================================
-cdef void save_results():
+def save_results():
     if DEBUG:
         return
     print("Saving results...")
@@ -67,59 +68,39 @@ cdef void save_results():
 #==============================================================================
 #  Core - Incrementation
 #==============================================================================
-cdef:
-    int ticksSinceShard
-    tuple targetHistory
-    float accumulator
+cdef void addTickResult(tuple key, int isSuccess):
+    global iteratedTicks
+    try:
+        iteratedTicks[key][isSuccess] += 1
+    except KeyError:
+        iteratedTicks[key] = [0, 0]
+        iteratedTicks[key][isSuccess] += 1
 
-cdef void addTickResult(tuple key, bool isSuccess):
-  global iteratedTicks
-  try:
-      if isSuccess:
-        iteratedTicks[key][1] += 1
-      else:
-        iteratedTicks[key][0] += 1
-  except KeyError:
-      iteratedTicks[key] = [0, 0]
-      if isSuccess:
-        iteratedTicks[key][1] += 1
-      else:
-        iteratedTicks[key][0] += 1
+@cython.profile(False)
+@cython.cdivision(True)
+cdef inline float rng_reset():
+    return rand() * RESET_MAX / RAND_MAX - RESET_MIN
 
-cdef void reset_variables():
-    global ticksSinceShard
-    global targetHistory
-    global accumulator
-    ticksSinceShard = 0
-    targetHistory = ()
-    accumulator = rand() * INCREMENT_MAX / RAND_MAX - INCREMENT_MIN
-
-cdef float rng_increment():
+@cython.profile(False)
+@cython.cdivision(True)
+cdef inline float rng_increment():
     return rand() * INCREMENT_MAX / RAND_MAX - INCREMENT_MIN
-
-cdef void increment_core(tuple targets, unsigned int max_iterations):
-    global iteratedTicks  
-    global ticksSinceShard
-    global targetHistory
-    global accumulator
-    
-    cdef unsigned int iteration_counter = 0
-    cdef unsigned int currentTargets
-    while iteration_counter < max_iterations:
-        reset_variables()
-        for currentTargets in targets:
-            iteration_counter += 1
-            
-            targetHistory += (currentTargets,)
+cpdef tuple full_intersection(TypeOfSelf self not None, Ray ray not None)
+cdef void increment_core(tuple targets, int iteration_sets):
+    cdef float accumulator
+    cdef int iteration_counter = 0
+    cdef int currentTargets
+    cdef int targetIndex
+    cdef int targetMax = len(targets)
+    for iteration_counter in xrange(0, iteration_sets):
+        accumulator = rng_reset()
+        for targetIndex in xrange(1, targetMax+1):
             accumulator += rng_increment()
-            ticksSinceShard += 1
-        
             if accumulator > 1:
-                addTickResult(targetHistory, True)
-                reset_variables()
+                addTickResult(targets[0:targetIndex], 1)
                 break
             else:
-                addTickResult(targetHistory, False)
+                addTickResult(targets[0:targetIndex], 0)
 
 #==============================================================================
 #  Wrappers
@@ -146,7 +127,7 @@ def fill_permuted_incrementation(iteration_aim):
                             iteration_needed = True
                             increment_core(targets, ITERATIONS)
                             iterations_total += ITERATIONS
-                            if iterations_total > 10000000 and PRINT_OUTPUT:
+                            if PRINT_OUTPUT and iterations_total > PRINT_OUTPUT_EVERY:
                                 print("Iterating %s (currently %i iterations)" % (" ".join(str(i) for i in targets), iteration_sum))
                                 iterations_total = 0
 
