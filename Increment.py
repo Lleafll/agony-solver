@@ -4,11 +4,11 @@
 # Modules
 #=======================================
 import ConfigParser
+import cProfile
 import cPickle
 from math import sqrt
 import itertools
 import os.path as path
-from random import randint
 from random import uniform
 
 #=======================================
@@ -88,21 +88,10 @@ def addTickResult(key, isSuccess):
       else:
         iteratedTicks[key][0] += 1
 
-def increment_core(iterations=ITERATIONS, targets=None):
-  # Variables
-  global iteratedTicks
-  if targets is None:
-    max_ticks = MAX_TICKS
-  else:
-    max_ticks = len(targets)
-  global ticksSinceShard
-  global targetHistory
-  global accumulator
-  accumulator = uniform(RESET_MIN, RESET_MAX)  # Initial condition
-  targetHistory = ()
-  ticksSinceShard = 0
-
-  def reset_variables():
+global ticksSinceShard
+global targetHistory
+global accumulator
+def reset_variables():
     global ticksSinceShard
     global targetHistory
     global accumulator
@@ -110,66 +99,35 @@ def increment_core(iterations=ITERATIONS, targets=None):
     targetHistory = ()
     accumulator = uniform(RESET_MIN, RESET_MAX)
 
-  def addToTargetHistory(currentTargets):
-    global targetHistory
+def increment_core(targets, iterations=ITERATIONS):
+    # Variables
+    global iteratedTicks  
     global ticksSinceShard
-    targetHistory += (currentTargets,)  # ticksSinceShard is not yet incremented
-
-  for i in range(1, iterations+1):
-    if targets is None:
-      currentTargets = randint(MIN_TARGETS, MAX_TARGETS)
-    else:
-      currentTargets = targets[ticksSinceShard]  # ticksSinceShard is not yet incremented
-
-    addToTargetHistory(currentTargets)
-    accumulator += uniform(INCREMENT_MIN, INCREMENT_MAX) / sqrt(currentTargets)
-    ticksSinceShard += 1
-
-    if accumulator > 1:
-      addTickResult(targetHistory, True)
-      reset_variables()
-    else:
-      addTickResult(targetHistory, False)
-
-    # Limit calculation depth
-    if ticksSinceShard == max_ticks:
-      reset_variables()
-
+    global targetHistory
+    global accumulator
+    
+    iteration_counter = 0
+    while iteration_counter < iterations:
+        reset_variables()
+        for currentTargets in targets:
+            iteration_counter += 1
+            
+            targetHistory += (currentTargets,)
+            accumulator += uniform(INCREMENT_MIN, INCREMENT_MAX) / sqrt(currentTargets)
+            ticksSinceShard += 1
+        
+            if accumulator > 1:
+                addTickResult(targetHistory, True)
+                reset_variables()
+                break
+            else:
+                addTickResult(targetHistory, False)
 
 #=======================================
 # Wrappers
 #=======================================
-# Calculate randomly
-#def random_incrementation():
-#  increment_core()
-
-## Calculate systematically
-#def permuted_incrementation():
-#  try:
-#    while True:
-#
-#      # Just mirroring real loop, LAZY AF
-#      total_combinations_with_replacement = 0
-#      for tick_count in range(1, MAX_TICKS+1):
-#        for target_history in itertools.combinations_with_replacement(range(MIN_TARGETS, MAX_TARGETS+1), tick_count-1):
-#          for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
-#            total_combinations_with_replacement += 1
-#
-#      combinations_iterator = 1
-#      for tick_count in range(1, MAX_TICKS+1):
-#        for target_history in itertools.combinations_with_replacement(range(MIN_TARGETS, MAX_TARGETS+1), tick_count-1):
-#          for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
-#            targets = target_history + (last_target,)
-#            print("Iterating %s (%i/%i)" % (" ".join(str(i) for i in targets), combinations_iterator, total_combinations_with_replacement))
-#            increment_core(targets=targets)
-#            combinations_iterator += 1
-#        save_results()
-#
-#  except KeyboardInterrupt:
-#    print("\nInterrupted\n")
-#    save_results()
-
 # Fill holes in permuted values
+pr = cProfile.Profile()
 def fill_permuted_incrementation(iteration_aim):
     try:
         iteration_needed = True
@@ -189,46 +147,23 @@ def fill_permuted_incrementation(iteration_aim):
                             iteration_needed = True
                             if PRINT_OUTPUT:
                                 print("Iterating %s (currently %i iterations)" % (" ".join(str(i) for i in targets), iteration_sum))
-                            increment_core(targets=targets)
+                            increment_core(targets)
             save_results()
     except KeyboardInterrupt:
         print("\nInterrupted, saving results...\n")
         save_results()
 
-## Fill all holes, necessary when there are non-permuted values in numpy array
-## Only fills values where there are iterations already
-#def fill_all_incrementation(iteration_aim):
-#  try:
-#    iteration_needed = True
-#    while iteration_needed:
-#      iteration_needed = False
-#      for tick_count in range(MAX_TICKS, 0, -1):
-#        print("Filling %i ticks" % tick_count)
-#        for target_history in itertools.product(range(MIN_TARGETS, MAX_TARGETS+1), repeat=tick_count-1):
-#          for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
-#              targets = target_history + (last_target,)
-#              iteratedTick = iteratedTicks[target_history_tuple_to_key(targets, MAX_TICKS)]
-#              iteration_sum = iteratedTick[0] + iteratedTick[1]
-#              if iteration_sum > 0 and iteration_sum < iteration_aim:
-#                iteration_needed = True
-#                print("Iterating %s (currently %i iterations)" % (" ".join(str(i) for i in targets), iteration_sum))
-#                increment_core(targets=targets)
-#      save_results()
-#  except KeyboardInterrupt:
-#      print("\nInterrupted, saving results...\n")
-#      save_results()
-
-
 #=======================================
 # Execution
 #=======================================
-fill_permuted_incrementation(100)
+fill_permuted_incrementation(10000)
 
 #=======================================
 # Profiling
 #=======================================
-#import cProfile
-#cProfile.run("fill_permuted_incrementation(10000)", "fill_permuted_incrementation.profile")
+#cProfile.run("fill_permuted_incrementation(1000)", "fill_permuted_incrementation.profile")
 #import pstats
-#stats = pstats.Stats("fill_permuted_incrementation.profile")
-#stats.strip_dirs().sort_stats("time").print_stats()
+#import StringIO
+#s = StringIO.StringIO()
+#ps = pstats.Stats("fill_permuted_incrementation.profile", stream=s).sort_stats("time").strip_dirs().sort_stats("time").print_stats()
+#print s.getvalue()
