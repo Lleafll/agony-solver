@@ -69,18 +69,18 @@ def save_results():
 #==============================================================================
 #  Core - Incrementation
 #==============================================================================
-cdef void addTickResult(tuple targets, int *results, int targetMax):
+cdef void addTickResult(int* failure, int* success, int targetMax, tuple targets):
     global iteratedTicks
     cdef int targetIndex
     for targetIndex in xrange(0, targetMax):
         key = targets[0:targetIndex+1]
         try:
-            iteratedTicks[key][0] += results[targetIndex][0]
-            iteratedTicks[key][1] += results[targetIndex][1]
+            iteratedTicks[key][0] += failure[targetIndex]
+            iteratedTicks[key][1] += success[targetIndex]
         except KeyError:
             iteratedTicks[key] = [0, 0]
-            iteratedTicks[key][0] += results[targetIndex][0]
-            iteratedTicks[key][1] += results[targetIndex][1]
+            iteratedTicks[key][0] += failure[targetIndex]
+            iteratedTicks[key][1] += success[targetIndex]
 
 @cython.profile(False)
 @cython.cdivision(True)
@@ -92,7 +92,7 @@ cdef inline float rng_reset():
 cdef inline float rng_increment():
     return rand() * INCREMENT_MAX / RAND_MAX - INCREMENT_MIN
 
-cdef void accumulate_core(int targetMax, int *results, int iterationSets):
+cdef void accumulate_core(int* failure, int* success, int targetMax, int iterationSets):
     cdef float accumulator
     cdef int iterationCounter
     cdef int currentTargets
@@ -103,17 +103,22 @@ cdef void accumulate_core(int targetMax, int *results, int iterationSets):
         for targetIndex in xrange(0, targetMax):
             accumulator += rng_increment()
             if accumulator > 1:
-                results[targetIndex][1] += 1
+                success[targetIndex] += 1
                 break
             else:
-                results[targetIndex][0] += 1
+                failure[targetIndex] += 1
 
 cdef void increment_core(tuple targets, int iterationSets):
     cdef int targetMax = len(targets)
-    cdef int results[targetMax][2] = {0}
+    cdef int failure[100]
+    cdef int success[100]
+    cdef int resultIndex
+    for resultIndex in xrange(0, targetMax):
+        failure[resultIndex] = 0
+        success[resultIndex] = 0
     
-    accumulate_core(targetMax, results, iterationSets)
-    addTickResult(targets, results, targetMax)
+    accumulate_core(failure, success, targetMax, iterationSets)
+    addTickResult(failure, success, targetMax, targets)
 
 #==============================================================================
 #  Wrappers
