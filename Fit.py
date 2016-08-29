@@ -36,12 +36,12 @@ CACHE_FILE_NAME = Config.get("Fit Settings", "CACHE_FILE_NAME")
 if not LOAD_CACHE:
     # Ask file name
     if SELECT_FILES_MANUALLY:
-        filetypes = [("Numpy Files", "*.npy"), ("All", "*")]
+        filetypes = [("Pickle Files", "*.pickle"), ("All", "*")]
         files = [askopenfilename(filetypes=filetypes)]
         root = Tkinter.Tk()
         root.withdraw()
     else:
-        pattern = u"*_*_*_%.2f_%.2f_%.2f_%.2f_results.npy" % (RESET_MIN, RESET_MAX, INCREMENT_MIN, INCREMENT_MAX)
+        pattern = u"%.2f_%.2f_%.2f_%.2f_results.pickle" % (RESET_MIN, RESET_MAX, INCREMENT_MIN, INCREMENT_MAX)
         files = fnmatch.filter(os.listdir("."), pattern)
     
     # Build Single Array From All Files
