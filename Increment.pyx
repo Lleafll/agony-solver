@@ -68,13 +68,18 @@ def save_results():
 #==============================================================================
 #  Core - Incrementation
 #==============================================================================
-cdef void addTickResult(tuple key, int isSuccess):
+cdef void addTickResult(tuple targets, int *results, int targetMax):
     global iteratedTicks
-    try:
-        iteratedTicks[key][isSuccess] += 1
-    except KeyError:
-        iteratedTicks[key] = [0, 0]
-        iteratedTicks[key][isSuccess] += 1
+    cdef int targetIndex
+    for targetIndex in xrange(0, targetMax):
+        key = targets[0:targetIndex+1]
+        try:
+            iteratedTicks[key][0] += results[targetIndex][0]
+            iteratedTicks[key][1] += results[targetIndex][1]
+        except KeyError:
+            iteratedTicks[key] = [0, 0]
+            iteratedTicks[key][0] += results[targetIndex][0]
+            iteratedTicks[key][1] += results[targetIndex][1]
 
 @cython.profile(False)
 @cython.cdivision(True)
@@ -86,21 +91,28 @@ cdef inline float rng_reset():
 cdef inline float rng_increment():
     return rand() * INCREMENT_MAX / RAND_MAX - INCREMENT_MIN
 
-cdef void increment_core(tuple targets, int iteration_sets):
+cdef void accumulate_core(int targetMax, int *results, int iterationSets):
     cdef float accumulator
-    cdef int iteration_counter = 0
+    cdef int iterationCounter
     cdef int currentTargets
     cdef int targetIndex
-    cdef int targetMax = len(targets)
-    for iteration_counter in xrange(0, iteration_sets):
+    
+    for iterationCounter in xrange(0, iterationSets):
         accumulator = rng_reset()
-        for targetIndex in xrange(1, targetMax+1):
+        for targetIndex in xrange(0, targetMax):
             accumulator += rng_increment()
             if accumulator > 1:
-                addTickResult(targets[0:targetIndex], 1)
+                results[targetIndex][1] += 1
                 break
             else:
-                addTickResult(targets[0:targetIndex], 0)
+                results[targetIndex][0] += 1
+
+cdef void increment_core(tuple targets, int iterationSets):
+    cdef int targetMax = len(targets)
+    cdef int results[targetMax][2] = {0}
+    
+    accumulate_core(targetMax, results, iterationSets)
+    addTickResult(targets, results, targetMax)
 
 #==============================================================================
 #  Wrappers
