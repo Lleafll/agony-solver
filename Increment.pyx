@@ -85,7 +85,7 @@ cdef inline float rng_reset():
 @cython.cdivision(True)
 cdef inline float rng_increment():
     return rand() * INCREMENT_MAX / RAND_MAX - INCREMENT_MIN
-cpdef tuple full_intersection(TypeOfSelf self not None, Ray ray not None)
+
 cdef void increment_core(tuple targets, int iteration_sets):
     cdef float accumulator
     cdef int iteration_counter = 0
