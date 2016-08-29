@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# cython: profile=True
 
 #==============================================================================
 #  Modules
@@ -27,7 +26,7 @@ cdef:
     int MIN_TARGETS = Config.getint("Iteration Settings", "MIN_TARGETS")
     int MAX_TARGETS = Config.getint("Iteration Settings", "MAX_TARGETS")
     int MAX_TICKS = Config.getint("Iteration Settings", "MAX_TICKS")
-    int PRINT_OUTPUT_EVERY = Config.getboolean("Iteration Settings", "PRINT_OUTPUT_EVERY")
+    int PRINT_OUTPUT_EVERY = Config.getint("Iteration Settings", "PRINT_OUTPUT_EVERY")
 PRINT_OUTPUT = Config.getboolean("Iteration Settings", "PRINT_OUTPUT")
 DEBUG = Config.getboolean("Iteration Settings", "DEBUG")
 
