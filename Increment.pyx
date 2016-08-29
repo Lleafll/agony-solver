@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-#=======================================
-# Modules
-#=======================================
+#==============================================================================
+#  Modules
+#==============================================================================
 import configparser
 import itertools
 from libc.stdlib cimport rand, RAND_MAX
@@ -12,9 +12,9 @@ import cProfile
 from cpython cimport bool
 from random import uniform
 
-#=======================================
-# Load settings
-#=======================================
+#==============================================================================
+#  Load settings
+#==============================================================================
 Config = configparser.ConfigParser()
 Config.read("settings.ini")
 cdef:
@@ -29,14 +29,14 @@ cdef:
     bool PRINT_OUTPUT = Config.getboolean("Iteration Settings", "PRINT_OUTPUT")
     bool DEBUG = Config.getboolean("Iteration Settings", "DEBUG")
 
-#=======================================
-# Constants
-#=======================================
-FILE_NAME = u"%i_%i_%i_%.2f_%.2f_%.2f_%.2f_results.pickle" % (MIN_TARGETS, MAX_TARGETS, MAX_TICKS, RESET_MIN, RESET_MAX, INCREMENT_MIN, INCREMENT_MAX)
+#==============================================================================
+#  Constants
+#==============================================================================
+FILE_NAME = u"%.2f_%.2f_%.2f_%.2f_results.pickle" % (RESET_MIN, RESET_MAX, INCREMENT_MIN, INCREMENT_MAX)
 
-#=======================================
-# Load or initialize
-#=======================================
+#==============================================================================
+#  Load or initialize
+#==============================================================================
 cdef dict iteratedTicks
 def initialize_iteratedTicks():
   global iteratedTicks
@@ -53,9 +53,9 @@ else:
     print("Import file not found.")
     initialize_iteratedTicks()
 
-#=======================================
-# Save results
-#=======================================
+#==============================================================================
+#  Save results
+#==============================================================================
 cdef void save_results():
     if DEBUG:
         return
@@ -64,9 +64,14 @@ cdef void save_results():
         pickle.dump(iteratedTicks, f)
     print("Results saved to %s" % FILE_NAME)
 
-#=======================================
-# Core - Incrementation
-#=======================================
+#==============================================================================
+#  Core - Incrementation
+#==============================================================================
+cdef:
+    int ticksSinceShard
+    tuple targetHistory
+    float accumulator
+
 cdef void addTickResult(tuple key, bool isSuccess):
   global iteratedTicks
   try:
@@ -81,24 +86,18 @@ cdef void addTickResult(tuple key, bool isSuccess):
       else:
         iteratedTicks[key][0] += 1
 
-cdef:
-    int ticksSinceShard
-    tuple targetHistory
-    float accumulator
-
 cdef void reset_variables():
     global ticksSinceShard
     global targetHistory
     global accumulator
     ticksSinceShard = 0
     targetHistory = ()
-    accumulator = rand() / (RAND_MAX * RESET_MAX) - RESET_MIN
+    accumulator = rand() * INCREMENT_MAX / RAND_MAX - INCREMENT_MIN
 
 cdef float rng_increment():
     return rand() * INCREMENT_MAX / RAND_MAX - INCREMENT_MIN
 
 cdef void increment_core(tuple targets, unsigned int max_iterations):
-    # Variables
     global iteratedTicks  
     global ticksSinceShard
     global targetHistory
@@ -122,11 +121,10 @@ cdef void increment_core(tuple targets, unsigned int max_iterations):
             else:
                 addTickResult(targetHistory, False)
 
-#=======================================
-# Wrappers
-#=======================================
+#==============================================================================
+#  Wrappers
+#==============================================================================
 # Fill holes in permuted values
-#pr = cProfile.Profile()
 cdef tuple targets
 def fill_permuted_incrementation(iteration_aim):
     try:
@@ -156,18 +154,3 @@ def fill_permuted_incrementation(iteration_aim):
     except KeyboardInterrupt:
         print("\nInterrupted, saving results...\n")
         save_results()
-
-#=======================================
-# Execution
-#=======================================
-#fill_permuted_incrementation(100)
-
-#=======================================
-# Profiling
-#=======================================
-#cProfile.run("fill_permuted_incrementation(1000)", "fill_permuted_incrementation.profile")
-#import pstats
-#import StringIO
-#s = StringIO.StringIO()
-#ps = pstats.Stats("fill_permuted_incrementation.profile", stream=s).sort_stats("time").strip_dirs().sort_stats("time").print_stats()
-#print s.getvalue()
