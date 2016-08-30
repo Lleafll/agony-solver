@@ -25,6 +25,7 @@ cdef:
     int MAX_TARGETS = Config.getint("Iteration Settings", "MAX_TARGETS")
     int MAX_TICKS = Config.getint("Iteration Settings", "MAX_TICKS")
     int PRINT_OUTPUT_EVERY = Config.getint("Iteration Settings", "PRINT_OUTPUT_EVERY")
+    int SAVE_EVERY = Config.getint("Iteration Settings", "SAVE_EVERY")
 PRINT_OUTPUT = Config.getboolean("Iteration Settings", "PRINT_OUTPUT")
 DEBUG = Config.getboolean("Iteration Settings", "DEBUG")
 
@@ -90,10 +91,11 @@ cdef inline float rng_increment():
     return rand() * INCREMENT_MAX / RAND_MAX - INCREMENT_MIN
 
 cdef void accumulate_core(int* failure, int* success, int targetMax, int iterationSets):
-    cdef float accumulator
-    cdef int iterationCounter
-    cdef int currentTargets
-    cdef int targetIndex
+    cdef:
+        float accumulator
+        int iterationCounter
+        int currentTargets
+        int targetIndex
     
     for iterationCounter in xrange(0, iterationSets):
         accumulator = rng_reset()
@@ -106,10 +108,11 @@ cdef void accumulate_core(int* failure, int* success, int targetMax, int iterati
                 failure[targetIndex] += 1
 
 cdef void increment_core(tuple targets, int iterationSets):
-    cdef int targetMax = len(targets)
-    cdef int failure[100]
-    cdef int success[100]
-    cdef int resultIndex
+    cdef:
+        int targetMax = len(targets)
+        int failure[100]
+        int success[100]
+        int resultIndex
     for resultIndex in xrange(0, targetMax):
         failure[resultIndex] = 0
         success[resultIndex] = 0
@@ -126,6 +129,7 @@ def fill_permuted_incrementation(iteration_aim):
     try:
         iteration_needed = True
         iterations_total = 0
+        iterations_save = 0
         while iteration_needed:
             iteration_needed = False
             for tick_count in range(MAX_TICKS, 0, -1):
@@ -145,6 +149,10 @@ def fill_permuted_incrementation(iteration_aim):
                             if PRINT_OUTPUT and iterations_total > PRINT_OUTPUT_EVERY:
                                 print("Iterating %s (currently %i iterations)" % (" ".join(str(i) for i in targets), iteration_sum))
                                 iterations_total = 0
+                            iterations_save += ITERATIONS
+                            if iterations_save > SAVE_EVERY:
+                                save_results()
+                                iterations_save = 0
 
             save_results()
     except KeyboardInterrupt:
