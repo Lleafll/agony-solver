@@ -7,6 +7,7 @@ cimport cython
 import configparser
 import itertools
 from libc.stdlib cimport rand, RAND_MAX
+from numbers import Number
 import os.path as path
 import pickle
 
@@ -17,6 +18,8 @@ Config = configparser.ConfigParser()
 Config.read("settings.ini")
 cdef:
     int ITERATIONS = Config.getint("Iteration Settings", "ITERATIONS")
+    int ITERATION_AIM = Config.getint("Iteration Settings", "ITERATION_AIM")
+    float CHANCE_LIMIT = Config.getfloat("Iteration Settings", "CHANCE_LIMIT")
     float RESET_MIN = Config.getfloat("Iteration Settings", "RESET_MIN")
     float RESET_MAX = Config.getfloat("Iteration Settings", "RESET_MAX")
     float INCREMENT_MIN = Config.getfloat("Iteration Settings", "INCREMENT_MIN")
@@ -104,14 +107,14 @@ cdef void pre_calculate_square_roots_factor(tuple targets):
 cdef inline float rng_increment(int targetIndex):
     return rand() * squareRootsFactor[targetIndex]
 
-cdef void accumulate_core(int* failure, int* success, int targetMax, int iterationSets):
+cdef void accumulate_core(int* failure, int* success, int targetMax, int iterations):
     cdef:
         float accumulator
         int iterationCounter
         int currentTargets
         int targetIndex
     
-    for iterationCounter in range(0, iterationSets):
+    for iterationCounter in range(0, iterations):
         accumulator = rng_reset()
         
         for targetIndex in range(0, targetMax):
@@ -142,47 +145,95 @@ cdef void increment_core(tuple targets, int iterationSets):
 #==============================================================================
 #  Wrappers
 #==============================================================================
-# Fill holes in permuted values
-cdef tuple targets
-def fill_permuted_incrementation(iteration_aim):
-    try:
-        further_iteration_needed = True
-        iterations_save = 0
-        
-        while further_iteration_needed:
-            iterations_total = float("inf")
-            further_iteration_needed = False
-            
-            for tick_count in range(MAX_TICKS, 0, -1):
-                print("Filling %i ticks" % tick_count)
-                
-                for target_history in itertools.combinations_with_replacement(range(MIN_TARGETS, MAX_TARGETS+1), tick_count-1):
-                    
-                    for last_target in range(MIN_TARGETS, MAX_TARGETS+1):
-                        targets = target_history + (last_target,)
-                        
-                        try:
-                            iteratedTick = iteratedTicks[targets]
-                            iteration_sum = iteratedTick[0] + iteratedTick[1]
-                        except KeyError:
-                            iteration_sum = 0
-                        
-                        if iteration_sum < iteration_aim:
-                            further_iteration_needed = True
-                            increment_core(targets, ITERATIONS)
-                            iterations_total += ITERATIONS
-                            
-                            if PRINT_OUTPUT and iterations_total > PRINT_OUTPUT_EVERY:
-                                print("Iterating %s (currently %i iterations)" % (" ".join(str(i) for i in targets), iteration_sum))
-                                iterations_total = 0
-                            iterations_save += ITERATIONS
-                            
-                            if iterations_save > SAVE_EVERY:
-                                save_results()
-                                iterations_save = 0
+def tuple_to_string(tpl):
+    return " ".join("{:>2d}".format(i) for i in tpl)
 
+def calculate_path_chance(targetHistory):
+    pathChance = 1
+    
+    for targetsSliceIndex in range(1, len(targetHistory)+1):
+        try:
+            tick = iteratedTicks[targetHistory[:targetsSliceIndex]]
+            failure = tick[0]
+            success = tick[1]
+            iterations = failure + success
+            if iterations < ITERATION_AIM:
+                return True
+            else:
+                pathChance *= failure / iterations
+                if pathChance < CHANCE_LIMIT:
+                    #print("Skipping path {} (less than {} chance to reach)".format(tuple_to_string(targetHistory), pathChance))
+                    return False
+        except KeyError:
+            return True
+    
+    return pathChance
+
+cdef tuple targets
+# Base function to be used by wrappers
+def incrementation_base(iterator):
+    try:
+        furtherIterationsNeeded = True
+        
+        while furtherIterationsNeeded:
+            iterationsTotal = float("inf")
+            furtherIterationsNeeded = False
+            iterationCounterSave = 0
+            
+            for tickCounter in range(MAX_TICKS, 0, -1):
+                print("Filling %i ticks" % tickCounter)
+                
+                for targetHistory in iterator(tickCounter):
+                    pathChance = calculate_path_chance(targetHistory)
+                    
+                    if pathChance:
+                        for lastTarget in range(MIN_TARGETS, MAX_TARGETS+1):
+                            targets = targetHistory + (lastTarget,)
+                            
+                            try:
+                                iteratedTick = iteratedTicks[targets]
+                                iterationSum = iteratedTick[0] + iteratedTick[1]
+                            except KeyError:
+                                iterationSum = 0
+                            
+                            if iterationSum < ITERATION_AIM:
+                                    iterationCounterSave += ITERATIONS
+                                    iterationsTotal += 1
+                                    
+                                    isPathChanceNumber = isinstance(pathChance, Number)
+                                    if isPathChanceNumber or iterationSum > 0 or PRINT_OUTPUT and iterationsTotal > PRINT_OUTPUT_EVERY:
+                                        outputString = "Iterating {} (currently {} iterations)".format(tuple_to_string(targets), iterationSum)
+                                        if isPathChanceNumber:
+                                            outputString = "{} (path chance: {})".format(outputString, pathChance)
+                                        print(outputString)
+                                        iterationsTotal = 0
+                                    
+                                    furtherIterationsNeeded = True
+                                    increment_core(targets, ITERATIONS)
+                                    
+                                    if iterationCounterSave >= SAVE_EVERY:
+                                        save_results()
+                                        iterationCounterSave = 0
+    
             save_results()
             
     except KeyboardInterrupt:
         print("\nInterrupted, saving results...\n")
         save_results()
+
+
+# Fill holes in permuted values
+def fill_permuted():
+    def combinations_with_replacement(tickCounter):
+        return itertools.combinations_with_replacement(range(MIN_TARGETS, MAX_TARGETS+1), tickCounter-1)
+    
+    incrementation_base(combinations_with_replacement)
+
+# Only calculate 
+def fill_same():
+    def combination_same(tickCounter):
+        tickCounter -= 1
+        for base in range(MIN_TARGETS, MAX_TARGETS+1):
+            yield (base,) * tickCounter
+
+    incrementation_base(combination_same)
