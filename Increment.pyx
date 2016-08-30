@@ -100,7 +100,7 @@ cdef void pre_calculate_square_roots_factor(tuple targets):
     cdef int targetIndex = 0
     
     for target in targets:
-        squareRootsFactor[targetIndex] = INCREMENT_MAX / RAND_MAX * target**0.5
+        squareRootsFactor[targetIndex] = INCREMENT_MAX / RAND_MAX / target**0.5
         targetIndex += 1
 
 @cython.profile(False)
