@@ -9,8 +9,6 @@ import itertools
 from libc.stdlib cimport rand, RAND_MAX
 import os.path as path
 import pickle
-import cProfile
-from random import uniform
 
 #==============================================================================
 #  Load settings
