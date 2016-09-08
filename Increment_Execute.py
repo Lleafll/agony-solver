@@ -4,9 +4,9 @@ from Increment import fill_permuted, fill_same
 # Profiling
 #==============================================================================
 #import cProfile
-#cProfile.run("fill_permuted_incrementation(1000)", "fill_permuted_incrementation.profile")
+#cProfile.run("fill_permuted()", "fill_permuted.profile")
 #import pstats
-#pstats.Stats("fill_permuted_incrementation.profile").sort_stats("time").strip_dirs().sort_stats("time").print_stats()
+#pstats.Stats("fill_permuted.profile").sort_stats("time").strip_dirs().sort_stats("time").print_stats()
 
 #import statprof
 #statprof.start()
@@ -19,4 +19,4 @@ from Increment import fill_permuted, fill_same
 #==============================================================================
 # Regular Execution
 #==============================================================================
-#fill_permuted_incrementation(100)
+#fill_permuted()

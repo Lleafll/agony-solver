@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# cython: profile=False
 
 #==============================================================================
 #  Modules
@@ -6,7 +7,7 @@
 cimport cython
 import configparser
 import itertools
-from libc.stdlib cimport rand, RAND_MAX
+from libc.stdlib cimport RAND_MAX
 import os.path as path
 import pickle
 
@@ -27,7 +28,7 @@ cdef:
     int MAX_TARGETS = Config.getint("Iteration Settings", "MAX_TARGETS")
     int MAX_TICKS = Config.getint("Iteration Settings", "MAX_TICKS")
     int PRINT_OUTPUT_EVERY = Config.getint("Iteration Settings", "PRINT_OUTPUT_EVERY")
-    int SAVE_EVERY = Config.getint("Iteration Settings", "SAVE_EVERY")
+SAVE_EVERY = Config.getint("Iteration Settings", "SAVE_EVERY")
 PRINT_OUTPUT = Config.getboolean("Iteration Settings", "PRINT_OUTPUT")
 DEBUG = Config.getboolean("Iteration Settings", "DEBUG")
 
@@ -71,26 +72,27 @@ def save_results():
 #==============================================================================
 #  Core - Incrementation
 #==============================================================================
-cdef void addTickResult(int* failure, int* success, int currentMax, tuple targetHistory, tuple currentTargets):
+def get_gain_list_from_iteratedTicks(key):
+    level = iteratedTicks
+    for i in key:
+        try:
+            level = level[i]
+        except KeyError:
+            
+            level[i] = {0 : [0, 0]}
+            level = level[i]
+    
+    return level[0]
+
+cdef void add_tick_result(int* failure, int* success, int currentMax, tuple targetHistory, tuple currentTargets):
     global iteratedTicks
     cdef int targetIndex
     
     for targetIndex in range(0, currentMax):
         key = targetHistory + (currentTargets[targetIndex],)
-        
-        try:
-            iteratedTicks[key][0] += failure[targetIndex]
-            iteratedTicks[key][1] += success[targetIndex]
-        except KeyError:
-            iteratedTicks[key] = [0, 0]
-            iteratedTicks[key][0] += failure[targetIndex]
-            iteratedTicks[key][1] += success[targetIndex]
-
-cdef float rngResetFactor = RESET_MAX / RAND_MAX
-@cython.profile(False)
-@cython.cdivision(True)
-cdef inline float rng_reset():
-    return rand() * rngResetFactor
+        gainList = get_gain_list_from_iteratedTicks(key)        
+        gainList[0] += failure[targetIndex]
+        gainList[1] += success[targetIndex]
 
 cdef:
     float squareRootsFactorHistory[100]  # Used to store pre-calculated square roots, indices corresponding to indices in targets tuple
@@ -103,15 +105,28 @@ cdef inline void pre_calculate_square_roots_factors(float* factorArray, tuple ta
         factorArray[targetIndex] = INCREMENT_MAX / RAND_MAX / target**0.5
         targetIndex += 1
 
+cdef int g_seed = 36
+@cython.profile(False)
+cdef inline int fast_rand():  # http://stackoverflow.com/questions/1640258/need-a-fast-random-generator-for-c
+    global g_seed
+    g_seed = (214013 * g_seed + 2531011)
+    return (g_seed >> 16) & 0x7FFF
+
+cdef float rngResetFactor = RESET_MAX / RAND_MAX
+@cython.profile(False)
+@cython.cdivision(True)
+cdef inline float rng_reset():
+    return fast_rand() * rngResetFactor
+
 @cython.profile(False)
 cdef inline float rng_increment_history(int targetIndex):
-    return rand() * squareRootsFactorHistory[targetIndex]
+    return fast_rand() * squareRootsFactorHistory[targetIndex]
 
 @cython.profile(False)
 cdef inline float rng_increment_current(int targetIndex):
-    return rand() * squareRootsFactorCurrent[targetIndex]    
+    return fast_rand() * squareRootsFactorCurrent[targetIndex]    
 
-cdef void accumulate_core(int* failure, int* success, int historyMax, int currentMax):
+cdef void accumulate_core(int* failure, int* success, int historyMax, int currentMax, int iterations):
     cdef:
         float accumulator
         float accumulatorCurrent
@@ -119,7 +134,7 @@ cdef void accumulate_core(int* failure, int* success, int historyMax, int curren
         int currentTargets
         int targetIndex
     
-    for iterationCounter in range(0, ITERATIONS):
+    for iterationCounter in range(0, iterations):
         accumulator = rng_reset()
         
         for targetIndex in range(0, historyMax):
@@ -130,12 +145,12 @@ cdef void accumulate_core(int* failure, int* success, int historyMax, int curren
         if accumulator <= 1:
             for targetIndex in range(0, currentMax):
                 accumulatorCurrent = accumulator + rng_increment_current(targetIndex)
-                if accumulator > 1:
+                if accumulatorCurrent > 1:
                     success[targetIndex] += 1
                 else:
                     failure[targetIndex] += 1
 
-cdef void increment_core(tuple targetHistory, tuple currentTargets):
+cdef void increment_core(tuple targetHistory, tuple currentTargets, int iterations):
     cdef:
         int historyMax = len(targetHistory)
         int currentMax = len(currentTargets)
@@ -150,8 +165,8 @@ cdef void increment_core(tuple targetHistory, tuple currentTargets):
         failure[resultIndex] = 0
         success[resultIndex] = 0
     
-    accumulate_core(failure, success, historyMax, currentMax)
-    addTickResult(failure, success, currentMax, targetHistory, currentTargets)
+    accumulate_core(failure, success, historyMax, currentMax, iterations)
+    add_tick_result(failure, success, currentMax, targetHistory, currentTargets)
 
 #==============================================================================
 #  Wrappers
@@ -160,27 +175,28 @@ def tuple_to_string(tpl):
     return " ".join("{:>2d}".format(i) for i in tpl)
 
 def calculate_path_chance(targetHistory):
+    if len(targetHistory) == 0:
+        return 1, None
+    
     pathChance = 1
     
     for targetsSliceIndex in range(1, len(targetHistory)+1):
-        try:
-            tick = iteratedTicks[targetHistory[:targetsSliceIndex]]
-            failure = tick[0]
-            success = tick[1]
-            iterations = failure + success
-            if iterations < ITERATION_AIM:
-                return True, targetsSliceIndex
-            else:
-                pathChance *= failure / iterations
-                if pathChance < CHANCE_LIMIT:
-                    #print("Skipping path {} (less than {} chance to reach)".format(tuple_to_string(targetHistory), pathChance))
-                    return False, None
-        except KeyError:
-            return True, None
+        tick = get_gain_list_from_iteratedTicks(targetHistory[:targetsSliceIndex])
+        failure = tick[0]
+        success = tick[1]
+        iterations = failure + success
+        if iterations < ITERATION_AIM:
+            return False, targetsSliceIndex
+        else:
+            pathChance *= failure / iterations
+            
+            if pathChance < CHANCE_LIMIT:
+                #print("Skipping path {} (less than {} chance to reach)".format(tuple_to_string(targetHistory), pathChance))
+                return False, None
     
     return pathChance, targetsSliceIndex
 
-cdef tuple targets
+cdef int iterationsLimit
 # Base function to be used by wrappers
 def incrementation_base(iterator):
     try:
@@ -194,18 +210,17 @@ def incrementation_base(iterator):
             for tickCounter in range(MAX_TICKS, 0, -1):
                 print("Filling %i ticks" % tickCounter)
                 
-                for targetHistory in iterator(tickCounter):
-                    pathChance, targetsSliceIndex = calculate_path_chance(targetHistory)
+                for targetHistory in iterator(tickCounter):                    
+                    pathChance, abortIndex = calculate_path_chance(targetHistory)
                     
                     if pathChance:
                         currentTargets = () 
-                        currentTargetOutputString = ""                       
+                        currentTargetOutputString = ""
+                        minIterationSum = ITERATION_AIM  # float("inf") could be clearer?
                         
                         for lastTarget in range(MIN_TARGETS, MAX_TARGETS+1):
-                            targets = targetHistory + (lastTarget,)
-                            
                             try:
-                                iteratedTick = iteratedTicks[targets]
+                                iteratedTick = get_gain_list_from_iteratedTicks(targetHistory + (lastTarget,))
                                 iterationSum = iteratedTick[0] + iteratedTick[1]
                             except KeyError:
                                 iterationSum = 0
@@ -213,21 +228,24 @@ def incrementation_base(iterator):
                             if iterationSum < ITERATION_AIM:
                                 currentTargets += (lastTarget,)
                                 currentTargetOutputString = "{} ({}:{})".format(currentTargetOutputString, lastTarget, iterationSum)
-                        
-                        if len(currentTargets) > 0:
-                            iterationCounterSave += ITERATIONS
+                            
+                            minIterationSum = iterationSum < minIterationSum and iterationSum or minIterationSum
+                            
+                        if len(currentTargets) > 0:                            
+                            minimumIterations = (ITERATION_AIM - minIterationSum) / pathChance * 2
+                            iterationsLimit = int(minimumIterations < ITERATIONS and minimumIterations or ITERATIONS)
+                            iterationCounterSave += iterationsLimit
                             iterationsTotal += 1
+                            furtherIterationsNeeded = True
                             
                             if PRINT_OUTPUT and iterationsTotal >= PRINT_OUTPUT_EVERY:
                                 outputString = "{}".format(tuple_to_string(targetHistory))
-                                outputString = "{} ({}) ({})".format(outputString, pathChance is True and "-" or pathChance, targetsSliceIndex and targetsSliceIndex or "")
+                                outputString = "{} ({}) ({}) ({} iterations)".format(outputString, pathChance is True and "-" or pathChance, abortIndex and abortIndex or "-", iterationsLimit)
                                 print(outputString)
                                 print(currentTargetOutputString)
                                 iterationsTotal = 0
                             
-                            increment_core(targetHistory, currentTargets)
-                            
-                            furtherIterationsNeeded = True
+                            increment_core(targetHistory, currentTargets, iterationsLimit)
                             
                             if iterationCounterSave >= SAVE_EVERY:
                                 save_results()
@@ -247,11 +265,24 @@ def fill_permuted():
     
     incrementation_base(combinations_with_replacement)
 
-# Only calculate 
+# Only calculate rows of the same number
 def fill_same():
     def combination_same(tickCounter):
         tickCounter -= 1
-        for base in range(MIN_TARGETS, MAX_TARGETS+1):
-            yield (base,) * tickCounter
+        if tickCounter == 0:
+            yield ()
+        else:
+            for base in range(MIN_TARGETS, MAX_TARGETS+1):
+                yield (base,) * tickCounter
 
     incrementation_base(combination_same)
+    
+# Calculate small subset of possible combinations
+def fill_permuted_small():
+    def combinations_with_replacement_small(tickCounter):
+        for base in range(MIN_TARGETS, MAX_TARGETS+1):  # Modification of https://docs.python.org/2/library/itertools.html#itertools.combinations_with_replacement
+            for tpl in itertools.combinations_with_replacement((MIN_TARGETS, base, MAX_TARGETS), tickCounter-1):
+                if not tpl is None:
+                    yield tpl
+    
+    incrementation_base(combinations_with_replacement_small)
