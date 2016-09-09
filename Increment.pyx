@@ -8,6 +8,7 @@ cimport cython
 import configparser
 import itertools
 from libc.stdlib cimport RAND_MAX
+from math import log10, floor
 import os.path as path
 import pickle
 
@@ -215,7 +216,6 @@ def incrementation_base(iterator):
                     
                     if pathChance:
                         currentTargets = () 
-                        currentTargetOutputString = ""
                         minIterationSum = ITERATION_AIM  # float("inf") could be clearer?
                         
                         for lastTarget in range(MIN_TARGETS, MAX_TARGETS+1):
@@ -227,22 +227,25 @@ def incrementation_base(iterator):
                             
                             if iterationSum < ITERATION_AIM:
                                 currentTargets += (lastTarget,)
-                                currentTargetOutputString = "{} ({}:{})".format(currentTargetOutputString, lastTarget, iterationSum)
                             
-                            minIterationSum = iterationSum < minIterationSum and iterationSum or minIterationSum
+                            if iterationSum < minIterationSum:
+                                minIterationSum = iterationSum
                             
-                        if len(currentTargets) > 0:                            
+                        if len(currentTargets) > 0:
                             minimumIterations = (ITERATION_AIM - minIterationSum) / pathChance * 2
-                            iterationsLimit = int(minimumIterations < ITERATIONS and minimumIterations or ITERATIONS)
+                            if minimumIterations < ITERATIONS:
+                                iterationsLimit = int(minimumIterations)
+                            else:
+                                iterationsLimit = int(ITERATIONS)
+                            
                             iterationCounterSave += iterationsLimit
                             iterationsTotal += 1
                             furtherIterationsNeeded = True
                             
                             if PRINT_OUTPUT and iterationsTotal >= PRINT_OUTPUT_EVERY:
                                 outputString = "{}".format(tuple_to_string(targetHistory))
-                                outputString = "{} ({}) ({}) ({} iterations)".format(outputString, pathChance is True and "-" or pathChance, abortIndex and abortIndex or "-", iterationsLimit)
+                                outputString = "{} ({}) ({}) ({} iterations | {} done)".format(outputString, pathChance is True and "-" or round(pathChance, -int(floor(log10(abs(CHANCE_LIMIT)))) + 1), abortIndex and abortIndex or "-", iterationsLimit, minIterationSum)
                                 print(outputString)
-                                print(currentTargetOutputString)
                                 iterationsTotal = 0
                             
                             increment_core(targetHistory, currentTargets, iterationsLimit)
