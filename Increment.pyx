@@ -35,7 +35,7 @@ DEBUG = Config.getboolean("Iteration Settings", "DEBUG")
 #==============================================================================
 #  Constants
 #==============================================================================
-FILE_NAME = u"%.2f_%.2f_%.2f_%.2f_results.pickle" % (RESET_MIN, RESET_MAX, RESET_MAX, INCREMENT_MAX)
+FILE_NAME = u"%.2f_%.2f_%.2f_%.2f_results.pickle" % (RESET_MIN, RESET_MAX, INCREMENT_MIN, INCREMENT_MAX)
 
 #==============================================================================
 #  Load or initialize
