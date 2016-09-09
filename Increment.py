@@ -91,7 +91,7 @@ def add_tick_result(targetHistory, currentTarget, failure, success):
 
 def accumulate_core(targetHistory, currentTargets, iterations):
     depth = 1 + len(targetHistory)
-    random_iterations = np.random.random_sample((depth, iterations))
+    random_iterations = np.random.random((depth, iterations))
     
     factor_array = np.zeros((depth, 1))
     factor_array[0][0] = RESET_MAX
@@ -111,7 +111,7 @@ def accumulate_core(targetHistory, currentTargets, iterations):
     
     iterations_history = iterations_history[iterations_history <= 1]
     depth = len(currentTargets)
-    random_iterations = np.random.random_sample((depth, len(iterations_history)))
+    random_iterations = np.random.random((depth, len(iterations_history)))
     dimension = 0
     factor_array = np.zeros((depth, 1))
     for target in currentTargets:
